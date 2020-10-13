@@ -61,11 +61,23 @@ sw = stopwords.words('english')
 # %%
 
 def get_words(text):
+    """
+    构造dict，key为词，value为list，存放字的位置
+    :param text:
+    :return:defaultdict(<class 'list'>, {'a': [0, 2], 'aa': [1, 3], 'b': [4], 'c': [5], 'd': [6], 'e': [7], 'ff': [8], 'g': [9]})
+    """
     text = re.sub(r"[{}]+".format(punctuation), " ", text)  # 将标点符号转化为空格
+    # print(text)
     text = text.lower()  # 全部字符转为小写
     words = nltk.word_tokenize(text)  # 分词
-    words = list(set(words).difference(set(sw)))  # 去停用词
-    return words
+    # print(words)
+    i = 0
+    result = defaultdict(list)
+    # words = list(set(words).difference(set(sw)))  # 去停用词
+    for word in words:
+        result[word].append(i)
+        i += 1
+    return result
 
 
 # %%
@@ -92,10 +104,10 @@ token_word = r'(?P<WORD>[a-zA-Z]+)'
 token_and = r'(?P<AND>&&)'
 token_lp = r'(?P<LP>\()'
 token_rp = r'(?P<RP>\))'
-token_quotation = r'(?P<QT>\')'
+token_quotation = r'(?P<QT>\")'
 
 lexer = re.compile('|'.join([token_or, token_not, token_word,
-                             token_and, token_lp, token_rp]))  # 编译正则表达式
+                             token_and, token_lp, token_rp, token_quotation]))  # 编译正则表达式
 
 
 # %%
@@ -134,31 +146,48 @@ class BoolRetrieval:
         # 已有构建好的索引文件
         else:
             data = np.load(index_path, allow_pickle=True)
-            self.files = data['files'][()]  # 没有很理解这后半部分【】的作用
+            self.files = data['files'][()]  # ()用来填充，否则报错。可以获取文件中所有该key下的内容，此处key为files
             self.index = data['index'][()]
+            # print(self.index)
         self.query_tokens = []
 
     def build_index(self, text_dir):
-        '''
+        """
+        {key:{doc_num:[word_place]}}
+        :example: {'the': {1: [0, 17, 20, 36, 50, 56, 73, 76], 2: [47, 71, 76, 83], 3: [4, 39, 56]}}
         self.index就像是一个字典的列表，索引键为词，索引值为所在文档的序号
         在索引的构建过程中，不仅需要记录单词出现的文档，还要记录单词在文档中出现的位置，因
         此索引结构要进行相应的改变 (图 1)。另外在分词的时候停用词和标点都需要保留以确保短语的完
         整性。
         :param text_dir:
         :return:
-        '''
+        """
         self.files = get_files(text_dir)  # 获取所有文件名
+        self.index = {}
         for num in range(0, len(self.files)):
             f = open(self.files[num])
             text = f.read()
+            # words格式为：defaultdict(<class 'list'>, {'a': [0, 2], 'aa': [1, 3], 'b': [4], 'c': [5], 'd': [6], 'e': [7], 'ff': [8], 'g': [9]})
             words = get_words(text)  # 分词
+
             # 构建倒排索引
-            for word in words:
-                self.index[word].append(num)
-        print(self.files, self.index)
+            for word in words.keys():
+                # self.index[word]={num:words.get(word)}
+                temp = {num: words.get(word)}
+                # print(temp)
+                if self.index.get(word) == None:
+                    self.index[word] = temp
+                else:
+                    self.index[word][num] = words.get(word)
+        # print(self.files, self.index)
         np.savez('index.npz', files=self.files, index=self.index)
 
     def search(self, query):
+        """
+        bool retrieval功能的统一入口
+        :param query:
+        :return:
+        """
         self.query_tokens = get_tokens(query)  # 获取查询的tokens
         result = []
         # 将查询得到的文件ID转换成文件名
@@ -168,30 +197,24 @@ class BoolRetrieval:
 
     # 递归解析布尔表达式，p、q为子表达式左右边界的下标
     def evaluate(self, p, q):
+        """
+
+        :param p:
+        :param q:
+        :return: list, indexes of files that contains the string queried
+        """
         # 解析错误
         if p > q:
             return []
         # 单个token，一定为查询词
         elif p == q:
-            return self.index[self.query_tokens[p][0]]
+            # print(list(self.index[self.query_tokens[p][0]].keys()))
+            return list(self.index[self.query_tokens[p][0]].keys())
         # 去掉外层括号
         elif self.check_parentheses(p, q):
             return self.evaluate(p + 1, q - 1)
-        # else:
-        #     # 非单个token
-        #     op,and_list = self.find_operator(p, q)
-        #     #只有一个and运算符
-        #     if op == -1:
-        #         return []
-        #     # files1为运算符左边得到的结果，files2为右边
-        #     if self.query_tokens[op][1] == 'NOT':
-        #         files1 = []
-        #     else:
-        #         files1 = self.evaluate(p, op - 1)
-        #     files2 = self.evaluate(op + 1, q)
-        #     return self.merge(files1, files2, self.query_tokens[op][1])
-        elif self.check_quotation(p, q):
-            # 被 双 引 号 包 围 的 短 语 ， 注 意 双 引 号 中 间 不 应 有 其 他 双 引 号 或 逻 辑 运 算 符
+        elif self.check_quotation(p, q):  # 被 双 引 号 包 围 的 短 语 ， 注 意 双 引 号 中 间 不 应 有 其 他 双 引 号 或 逻 辑 运 算 符
+
             return self.phrase_search(p + 1, q - 1)
         else:
             # 非单个token
@@ -226,12 +249,26 @@ class BoolRetrieval:
                         files.append(len(self.evaluate(and_list[i] + 1, and_list[i + 1] - 1)))
                         i += 1
                     # files.append(len(self.evaluate(and_list[-1]+1,q)))
+                    print('出现多个and的情况，进行优化')
                     print('各个段出现文章的个数分别为：', files)
-                    temp = pd.Series(files).sort_values()[:2].values
+                    temp = list(pd.Series(files).sort_values()[:2].index)
                     print('即将进行运算的是以下两个段：', temp)
-                    files1 = self.evaluate(and_list[temp[0]] + 1, and_list[temp[0] + 1] - 1)
-                    files2 = self.evaluate(and_list[temp[1]] + 1, and_list[temp[1] + 1] - 1)
+                    #需要将query tokens进行调序，将文件数较少的两个放到前面来
+                    tuples=[]
+                    for t in range(len(files)):
+                        tuples.append(self.query_tokens[(and_list[t]+1):(and_list[t+1])])# 将token序列根据and切分开来，后半部分不用减1，因为是：
+                    self.query_tokens=tuples[temp[0]]+[('&&','AND')]+tuples[temp[1]]
+                    tuples.pop(temp[0])
+                    tuples.pop(temp[1]-1)# 必须保证前面pop的元素在此元素前
+                    for tpl in tuples:
+                        self.query_tokens=self.query_tokens+[('&&','AND')]+tpl
+                    #重新寻找第一个and
+                    op, and_list = self.find_operator(p, q)
+                    files1 = self.evaluate(p,op-1)
+                    files2 = self.evaluate(op+1,q)
+
                     return self.merge(files1, files2, self.query_tokens[op][1])
+
 
 
                 else:
@@ -277,7 +314,40 @@ class BoolRetrieval:
         return False
 
     def phrase_search(self, p, q):
-        pass
+        """
+        短语查询
+        :param p:
+        :param q:
+        :return: list,短语查询结果
+        """
+        # {'a': {1:[0, 2],2:[6,6,6,6]}}
+
+        result = list(self.index[self.query_tokens[p][0]])
+        # 构建一个list，包含短语中每个词（此处无所谓这个词是啥了，只需要考虑各个词之间的shunxuguanxi)
+        # 先确定所有共同的文档index
+        """#不确定是否上界为q"""
+        for i in range(p + 1, q + 1):
+            result = set(result).intersection(set(self.index[self.query_tokens[i][0]]))
+            if not result:
+                return []
+
+            i += 1
+
+        # 再确定在共同的文档中是否是短语，因此每次只筛选一个文档，若没有交集则将该文档从result删除
+        for file_num in result:
+            # temp用来存word的位置，不需要考虑文档编号，因为已经在上面的循环刨去文档数了，现在所有word都是能出现在同一个文档里的
+            temp = self.index[self.query_tokens[p][0]][file_num]
+            for i in range(p + 1, q + 1):
+                # 求列表交集
+                temp = set([t + 1 for t in temp]).intersection(set(self.index[self.query_tokens[i][0]][file_num]))
+                if not temp:
+                    result.remove(file_num)
+        return list(result)
+        # word_dict_list = []  # [{1:[0, 2],2:[6,6,6,6]},{1:[0, 2],2:[6,6,6,6]}...]
+        # for i in range(p + 1, q):
+        #     word_dict_list.append(self.index[self.query_tokens[i][0]])
+        # for file_index in word_dict_list[0].keys():
+        #     for word_dict in word_dict_list:
 
     # 寻找表达式的dominant的运算符（优先级最低）
     def find_operator(self, p, q):
@@ -294,7 +364,7 @@ class BoolRetrieval:
         and_list = []
         while p < q:
             temp_token = self.query_tokens[p][1]
-            if temp_token != 'WORD':
+            if temp_token != 'WORD' and temp_token != 'QT':
                 if temp_token == 'LP':
                     LP += 1
                 elif temp_token == 'RP':
@@ -340,26 +410,12 @@ class BoolRetrieval:
         return result
 
 
-# %%
-
-# br = BoolRetrieval()
-# br.build_index('text')
-br = BoolRetrieval('index.npz')
-
-# %%
-
-# 'information': [1, 2, 3],
-# 'used': [1],
-# # 'boolean': [1, 2],
-# 'based': [1, 2, 3],
-#  'day': [1],
-
-# query = input("请输入与查询（或||，与&&，非！）：")
-# print(br.search('based&&!day'))
-# print(br.search('based&&day'))
-# print(br.search('(based&&!day)&&(based&&day)'))
-# print(br.search('(based&&!day)||(based&&day)'))
-# print(br.search('((based&&!day)||boolean)||(based&&day)'))
-print(br.search('based&&day&&boolean&&day'))
-
-# apple||dog&&(pig!bird)
+if __name__ == '__main__':
+    # br = BoolRetrieval()
+    # br.build_index('text')
+    br = BoolRetrieval('index.npz')
+    print(br.search('\"advantages clean\"&&\"easy to implement\"&&the'))
+    print(br.search('\"advantages clean\"&&\"easy to implement\"'))
+    print(br.search('\"advantages clean\"&&the&&\"easy to implement\"'))
+    print(br.search('\"easy to implement\"&&the'))
+    print(br.search('the'))
