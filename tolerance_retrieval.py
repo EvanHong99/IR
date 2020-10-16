@@ -168,7 +168,7 @@ class BoolRetrieval:
         """
         将输入的词拆分成一个list，包含k-gram的内容
         :param word: 一个单词，不带任何标点符号（除了连词符-）
-        :return:
+        :return:list
         """
         temp_word = '$' + word + '$'
         k_gram_list = []
@@ -202,17 +202,15 @@ class BoolRetrieval:
 
 
 
-    def correction(self,word):
+    def correct(self, word):
         """
-        未完成，return修改
-
         进行word矫正
 
         :steps
             进行将输入word拆分kgram；
             和词典kgrams比较，计算jaccard系数，挑选较高的；
             再计算编辑距离。
-        :return: corrected word
+        :return:str： corrected word
         """
         # 进行将输入word拆分kgram；
         threshold=0.1
@@ -235,9 +233,15 @@ class BoolRetrieval:
         # 再计算编辑距离。
         s=pd.Series(float)
         for e in top_words['word']:
-            s[e]=self.edit_dis(word,e)
-        # print(s.head(1).index)
-        return s.keys()[1] #第一行是标题行
+            dis=self.edit_dis(word,e)
+            s[e]=dis if dis<4 else 7
+        # 第一行是标题行
+        if s.values[1]<4:
+            print('矫正单词为：', s.keys()[1])
+            return s.keys()[1]
+        else:
+            print('未矫正单词')
+            return word
 
 
     def search(self, query):
@@ -246,16 +250,19 @@ class BoolRetrieval:
         :param query: 查询的句子
         :return:
         """
-        self.query_tokens = get_tokens(query)  # 获取查询的tokens
-        for i in range(len(self.query_tokens)):
-            if self.query_tokens[i][1] =='WORD' and (self.query_tokens[i][0] not in self.index.keys()):
-                self.query_tokens[i]=[self.correction(self.query_tokens[i][0]),'WORD']
+        try:
+            self.query_tokens = get_tokens(query)  # 获取查询的tokens
+            for i in range(len(self.query_tokens)):
+                if self.query_tokens[i][1] =='WORD' and (self.query_tokens[i][0] not in self.index.keys()):
+                    self.query_tokens[i]=[self.correct(self.query_tokens[i][0]), 'WORD']
 
-        result = []
-        # 将查询得到的文件ID转换成文件名
-        for num in self.evaluate(0, len(self.query_tokens) - 1):
-            result.append(self.files[num])
-        return result
+            result = []
+            # 将查询得到的文件ID转换成文件名
+            for num in self.evaluate(0, len(self.query_tokens) - 1):
+                result.append(self.files[num])
+            return result
+        except Exception:
+            return '无查找结果'
 
     # 递归解析布尔表达式，p、q为子表达式左右边界的下标
     def evaluate(self, p, q):
@@ -270,8 +277,8 @@ class BoolRetrieval:
             return []
         # 单个token，一定为查询词
         elif p == q:
-            # print(list(self.index[self.query_tokens[p][0]].keys()))
-            return list(self.index[self.query_tokens[p][0]].keys())
+            if self.index.get(self.query_tokens[p][0]):
+                return list(self.index[self.query_tokens[p][0]].keys())
         # 去掉外层括号
         elif self.check_parentheses(p, q):
             return self.evaluate(p + 1, q - 1)
@@ -473,14 +480,11 @@ class BoolRetrieval:
 
 
 if __name__ == '__main__':
-    # br = BoolRetrieval()
-    # br.build_index('text')
+    br = BoolRetrieval()
+    br.build_index('text')
     br = BoolRetrieval('index.npz')
-    print(br.search('\"clean\"&&\"easy to implement\"&&adavntages'))
-    print(br.search('\"adavntages clean\"&&\"easy to implement\"'))
-    # print(br.search('\"advantages clean\"&&the&&\"easy to implement\"'))
-    # print(br.search('\"easy to implement\"&&the'))
-    # print(br.search('the'))
+    # print(br.search('\"clean\"&&\"easy to implement\"&&adavntages'))
+    # print(br.search('\"adavntages clean\"&&\"easy to implement\"'))
     # print(br.search('adavntages'))
+    print(br.search('oh-my-god'))
 
-    '''测试-·'''
