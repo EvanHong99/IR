@@ -1,3 +1,6 @@
 import pandas as pd
-temp = pd.Series([7,5,6]).sort_values()[:2].index
-print(temp)
+import numpy as np
+s=pd.Series(dtype=float)
+s['a']=1
+s['b']=2
+print(s.keys()[0])

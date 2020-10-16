@@ -65,11 +65,12 @@ def get_files(dir, file_type='.txt'):
 # 构造每种类型词的正则表达式，()代表分组，?P<NAME>为组命名
 token_or = r'(?P<OR>\|\|)'
 token_not = r'(?P<NOT>\!)'
-token_word = r'(?P<WORD>[a-zA-Z]+)'
+token_word = r'(?P<WORD>([a-zA-Z]+(-|·){0,1})+)' #修改规则，使得能够识别连词符-和名字连接符·
 token_and = r'(?P<AND>&&)'
 token_lp = r'(?P<LP>\()'
 token_rp = r'(?P<RP>\))'
 token_quotation = r'(?P<QT>\")'
+
 
 lexer = re.compile('|'.join([token_or, token_not, token_word,
                              token_and, token_lp, token_rp, token_quotation]))  # 编译正则表达式
@@ -80,8 +81,7 @@ lexer = re.compile('|'.join([token_or, token_not, token_word,
 # 用编译好的正则表达式进行词法分析
 def get_tokens(query):
     """
-    [('abc', 'WORD'), ('(', 'LP'), ('ab', 'WORD'), (')', 'RP'), ('hhh', 'WORD'), ('aa', 'WORD')]
-    :param query:
+[['"', 'QT'], ['advantages', 'WORD'], ['clean', 'WORD'], ['"', 'QT'], ['&&', 'AND'], ['"', 'QT'],
     :return:
     """
     tokens = []  # tokens中的元素类型为(token, token类型)
@@ -108,22 +108,31 @@ class BoolRetrieval:
         '''
         if index_path == '':
             self.index = defaultdict(list)
+            self.k_gram_val = defaultdict(list)
+
         # 已有构建好的索引文件
         else:
             data = np.load(index_path, allow_pickle=True)
             self.files = data['files'][()]  # ()用来填充，否则报错。可以获取文件中所有该key下的内容，此处key为files
             self.index = data['index'][()]
+            self.k_gram_val=data['k_gram'][()]
             # print(self.index)
         self.query_tokens = []
+        self.k_num=3
+
 
     def build_index(self, text_dir):
         """
-        {key:{doc_num:[word_place]}}
-        :example: {'the': {1: [0, 17, 20, 36, 50, 56, 73, 76], 2: [47, 71, 76, 83], 3: [4, 39, 56]}}
-        self.index就像是一个字典的列表，索引键为词，索引值为所在文档的序号
-        在索引的构建过程中，不仅需要记录单词出现的文档，还要记录单词在文档中出现的位置，因
-        此索引结构要进行相应的改变 (图 1)。另外在分词的时候停用词和标点都需要保留以确保短语的完
-        整性。
+        1、
+            self.index={key:{doc_num:[word_place]}}
+            :example: {'the': {1: [0, 17, 20, 36, 50, 56, 73, 76], 2: [47, 71, 76, 83], 3: [4, 39, 56]}}
+            self.index就像是一个字典的列表，索引键为词，索引值为所在文档的序号
+            在索引的构建过程中，不仅需要记录单词出现的文档，还要记录单词在文档中出现的位置，因
+            此索引结构要进行相应的改变 (图 1)。另外在分词的时候停用词和标点都需要保留以确保短语的完
+            整性。
+        2、
+            初始化每个word的kgram
+            :example defaultdict(<class 'list'>, {'advantages': ['$ad', 'adv', 'dva', 'van', 'ant', 'nta', 'tag', 'age', 'ges', 'es$'],
         :param text_dir:
         :return:
         """
@@ -136,25 +145,112 @@ class BoolRetrieval:
             # 'e': [7], 'ff': [8], 'g': [9]})
             words = get_words(text)  # 分词
 
-            # 构建倒排索引
+            # 构建倒排索引、k-gram
             for word in words.keys():
                 # self.index[word]={num:words.get(word)}
                 temp = {num: words.get(word)}
                 # print(temp)
+                #如果之前没有这个词，加入word
                 if self.index.get(word) == None:
                     self.index[word] = temp
-                else:
+                else:#若有这个词，则在对应的word下加入相应num和其值
                     self.index[word][num] = words.get(word)
+
+                #进行k-gram拆解
+
+                self.k_gram_val[word]=self.get_k_gram(word)
+
+
         # print(self.files, self.index)
-        np.savez('index.npz', files=self.files, index=self.index)
+        np.savez('index.npz', files=self.files, index=self.index,k_gram=self.k_gram_val)
+
+    def get_k_gram(self,word):
+        """
+        将输入的词拆分成一个list，包含k-gram的内容
+        :param word: 一个单词，不带任何标点符号（除了连词符-）
+        :return:
+        """
+        temp_word = '$' + word + '$'
+        k_gram_list = []
+        for i in range(len(temp_word) + 1 - self.k_num):
+            k_gram_list.append(temp_word[i:i + self.k_num])
+        return k_gram_list
+
+    def edit_dis(self,word1,word2):
+        """
+        计算编辑距离
+
+        :steps:
+            1、构建空符和两个单词字母的矩阵
+            2、初始化矩阵最左边和最上面
+            3、遍历计算，从左边的单词开始出发，计算每个待计算空格的值：
+                若横纵坐标字母不同：向下减字母，向右加字母(取决于哪里是目标单词）
+                若相同：不变
+        :param word1:
+        :param word2:
+        :return: int： edit distance
+        """
+        m=np.mat(np.zeros((len(word1)+1,len(word2)+1)))
+        m[:,0]=np.mat(np.arange(len(word1)+1)).T
+        m[0,:]=np.arange(len(word2)+1)
+        # print(m)
+        for i in range(1,len(word1)+1):
+            for j in range(1,len(word2)+1):
+                m[i,j]=min(m[i-1,j-1] if word1[i-1]==word2[j-1] else m[i-1,j-1]+1,m[i-1,j]+1,m[i,j-1]+1)
+        # print(m)
+        return m[-1,-1]
+
+
+
+    def correction(self,word):
+        """
+        未完成，return修改
+
+        进行word矫正
+
+        :steps
+            进行将输入word拆分kgram；
+            和词典kgrams比较，计算jaccard系数，挑选较高的；
+            再计算编辑距离。
+        :return: corrected word
+        """
+        # 进行将输入word拆分kgram；
+        threshold=0.1
+        top_num=5
+
+        word_k=set(self.get_k_gram(word))
+
+        #             和词典kgrams比较，计算jaccard系数，挑选较高的；
+        indicator=pd.DataFrame(columns=['word','jaccard'])
+        for w in self.index.keys():
+            w_set=set(self.k_gram_val[w])
+            intsct=len((w_set.intersection(word_k)))
+            union= len(w_set) + len(word_k)-intsct
+            jaccard=intsct/union
+            indicator=indicator.append({'word':w,'jaccard':jaccard},ignore_index=True)
+        indicator.sort_values(by='jaccard', ascending=False, inplace=True)
+        num=min(top_num,len(indicator.loc[indicator['jaccard'] > threshold]))
+        top_words=indicator.head(num)
+
+        # 再计算编辑距离。
+        s=pd.Series(float)
+        for e in top_words['word']:
+            s[e]=self.edit_dis(word,e)
+        # print(s.head(1).index)
+        return s.keys()[1] #第一行是标题行
+
 
     def search(self, query):
         """
         bool retrieval功能的统一入口
-        :param query:
+        :param query: 查询的句子
         :return:
         """
         self.query_tokens = get_tokens(query)  # 获取查询的tokens
+        for i in range(len(self.query_tokens)):
+            if self.query_tokens[i][1] =='WORD' and (self.query_tokens[i][0] not in self.index.keys()):
+                self.query_tokens[i]=[self.correction(self.query_tokens[i][0]),'WORD']
+
         result = []
         # 将查询得到的文件ID转换成文件名
         for num in self.evaluate(0, len(self.query_tokens) - 1):
@@ -380,8 +476,11 @@ if __name__ == '__main__':
     # br = BoolRetrieval()
     # br.build_index('text')
     br = BoolRetrieval('index.npz')
-    print(br.search('\"advantages clean\"&&\"easy to implement\"&&the'))
-    print(br.search('\"advantages clean\"&&\"easy to implement\"'))
-    print(br.search('\"advantages clean\"&&the&&\"easy to implement\"'))
-    print(br.search('\"easy to implement\"&&the'))
-    print(br.search('the'))
+    print(br.search('\"clean\"&&\"easy to implement\"&&adavntages'))
+    print(br.search('\"adavntages clean\"&&\"easy to implement\"'))
+    # print(br.search('\"advantages clean\"&&the&&\"easy to implement\"'))
+    # print(br.search('\"easy to implement\"&&the'))
+    # print(br.search('the'))
+    # print(br.search('adavntages'))
+
+    '''测试-·'''
