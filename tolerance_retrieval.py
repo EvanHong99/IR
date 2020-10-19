@@ -90,7 +90,36 @@ def get_tokens(query):
     return tokens
 
 
-# %%
+def soundex(string, size=4):
+    """
+    将一个字符串编码为桑德斯编码
+    :type string:str
+    :rtype:str
+    :param string:
+    :param size:
+    :return:
+    """
+    #根据发音特点进行的桑德斯编码
+    soundex_digits = '01230120022455012623010202'
+    result = ''
+    first_char = ''
+    for c in string.upper():
+        # 如果是字母
+        if c.isalpha():
+            #若是第一个字母，则直接加入结果就行，不用soundex
+            if not first_char:
+                first_char = c
+            #否则进行桑德斯编码转换
+            d = soundex_digits[ord(c) - ord('A')]
+            #排除连续相似发音的单词
+            if not result or d != result[-1]:
+                result += d
+    result = first_char + result[1:]
+    #去掉['A','E','I','O','U','Y','H','W']等字母的发音
+    result = result.replace('0', '')
+    #补0拼接为结果
+    return (result + size * '0')[:size]
+
 
 
 class BoolRetrieval:
@@ -109,6 +138,7 @@ class BoolRetrieval:
         if index_path == '':
             self.index = defaultdict(list)
             self.k_gram_val = defaultdict(list)
+            self.soundex=defaultdict(list)
 
         # 已有构建好的索引文件
         else:
@@ -116,6 +146,7 @@ class BoolRetrieval:
             self.files = data['files'][()]  # ()用来填充，否则报错。可以获取文件中所有该key下的内容，此处key为files
             self.index = data['index'][()]
             self.k_gram_val=data['k_gram'][()]
+            self.soundex=data['soundex'][()]
             # print(self.index)
         self.query_tokens = []
         self.k_num=3
@@ -133,11 +164,14 @@ class BoolRetrieval:
         2、
             初始化每个word的kgram
             :example defaultdict(<class 'list'>, {'advantages': ['$ad', 'adv', 'dva', 'van', 'ant', 'nta', 'tag', 'age', 'ges', 'es$'],
+        3.
+            将桑德斯编码后的结果存入索引
         :param text_dir:
         :return:
         """
         self.files = get_files(text_dir)  # 获取所有文件名
         self.index = {}
+        self.soundex={}
         for num in range(0, len(self.files)):
             f = open(self.files[num])
             text = f.read()
@@ -149,6 +183,7 @@ class BoolRetrieval:
             for word in words.keys():
                 # self.index[word]={num:words.get(word)}
                 temp = {num: words.get(word)}
+                sound=soundex(word)
                 # print(temp)
                 #如果之前没有这个词，加入word
                 if self.index.get(word) == None:
@@ -156,13 +191,20 @@ class BoolRetrieval:
                 else:#若有这个词，则在对应的word下加入相应num和其值
                     self.index[word][num] = words.get(word)
 
+
                 #进行k-gram拆解
 
                 self.k_gram_val[word]=self.get_k_gram(word)
 
+                #soundex
+                if not self.soundex.get(sound):
+                    self.soundex[sound]=[word]
+                else:
+                    self.soundex[sound].append(word)
+
 
         # print(self.files, self.index)
-        np.savez('index.npz', files=self.files, index=self.index,k_gram=self.k_gram_val)
+        np.savez('index.npz', files=self.files, index=self.index,k_gram=self.k_gram_val,soundex=self.soundex)
 
     def get_k_gram(self,word):
         """
@@ -210,10 +252,11 @@ class BoolRetrieval:
             进行将输入word拆分kgram；
             和词典kgrams比较，计算jaccard系数，挑选较高的；
             再计算编辑距离。
+            若编辑距离较大，则进行soundex矫正
         :return:str： corrected word
         """
         # 进行将输入word拆分kgram；
-        threshold=0.1
+        threshold=0.3
         top_num=5
 
         word_k=set(self.get_k_gram(word))
@@ -236,17 +279,22 @@ class BoolRetrieval:
             dis=self.edit_dis(word,e)
             s[e]=dis if dis<4 else 7
         # 第一行是标题行
-        if s.values[1]<4:
+        if s.size>1 and s.values[1]<4:
             print('矫正单词为：', s.keys()[1])
             return s.keys()[1]
-        else:
-            print('未矫正单词')
-            return word
-
+        else:#未完善！=================================================
+            trigger=self.soundex.get(soundex(word))
+            if trigger:
+                print('soundex矫正为 ',trigger[0])
+                return trigger[0]#不是word第一个单词，而是应该最接近的哪一个
+            else:
+                print('未矫正单词')
+                return word
 
     def search(self, query):
         """
         bool retrieval功能的统一入口
+        1. 进行拼写矫正
         :param query: 查询的句子
         :return:
         """
@@ -262,6 +310,7 @@ class BoolRetrieval:
                 result.append(self.files[num])
             return result
         except Exception:
+
             return '无查找结果'
 
     # 递归解析布尔表达式，p、q为子表达式左右边界的下标
@@ -483,8 +532,10 @@ if __name__ == '__main__':
     br = BoolRetrieval()
     br.build_index('text')
     br = BoolRetrieval('index.npz')
-    # print(br.search('\"clean\"&&\"easy to implement\"&&adavntages'))
-    # print(br.search('\"adavntages clean\"&&\"easy to implement\"'))
-    # print(br.search('adavntages'))
-    print(br.search('oh-my-god'))
+    print(br.search('actvty'))
+    # # print(br.search('\"clean\"&&\"easy to implement\"&&adavntages'))
+    # # print(br.search('\"adavntages clean\"&&\"easy to implement\"'))
+    # # print(br.search('adavntages'))
+    # print(br.search('oh-my-god'))
+
 
