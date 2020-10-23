@@ -10,4 +10,4 @@ venv/
 *.iml
 out
 gen
-.zip
+*.zip
