@@ -233,37 +233,50 @@ class BSBIIndex:
         with open(os.path.join(self.output_dir, 'docs.dict'), 'rb') as f:
             self.doc_id_map = pkl.load(f)
 
-    # def index(self):
-    #     """Base indexing code
+    # def merge(self, indices, merged_index):
+    #     """Merges multiple inverted indices into a single index
     #
-    #     This function loops through the data directories,
-    #     calls parse_block to parse the documents
-    #     calls invert_write, which inverts each block and writes to a new index
-    #     then saves the id maps and calls merge on the intermediate indices
+    #     Parameters
+    #     ----------
+    #     indices: List[InvertedIndexIterator]
+    #         A list of InvertedIndexIterator objects, each representing an
+    #         iterable inverted index for a block
+    #     merged_index: InvertedIndexWriter
+    #         An instance of InvertedIndexWriter object into which each merged
+    #         postings list is written out one at a time
     #     """
-    #
-    #     # 从顶层目录开始解析
-    #     for block_dir_relative in sorted(next(os.walk(self.data_dir))[1]):
-    #         td_pairs = self.parse_block(block_dir_relative)
-    #         index_id = 'index_' + block_dir_relative
-    #         self.intermediate_indices.append(index_id)
-    #         with InvertedIndexWriter(index_id, directory=self.output_dir,
-    #                                  postings_encoding=
-    #                                  self.postings_encoding) as index:
-    #             self.invert_write(td_pairs, index)
-    #             td_pairs = None
-    #     self.save()
-    #     with InvertedIndexWriter(self.index_name, directory=self.output_dir,
-    #                              postings_encoding=
-    #                              self.postings_encoding) as merged_index:
-    #         with contextlib.ExitStack() as stack:
-    #             indices = [stack.enter_context(
-    #                 InvertedIndexIterator(index_id,
-    #                                       directory=self.output_dir,
-    #                                       postings_encoding=
-    #                                       self.postings_encoding))
-    #                 for index_id in self.intermediate_indices]
-    #             self.merge(indices, merged_index)
+
+    def index(self):
+        """Base indexing code
+
+        This function loops through the data directories,
+        calls parse_block to parse the documents
+        calls invert_write, which inverts each block and writes to a new index
+        then saves the id maps and calls merge on the intermediate indices
+        """
+
+        # 从顶层目录开始解析
+        for block_dir_relative in sorted(next(os.walk(self.data_dir))[1]):
+            td_pairs = self.parse_block(block_dir_relative)
+            index_id = 'index_' + block_dir_relative
+            self.intermediate_indices.append(index_id)
+            with InvertedIndexWriter(index_id, directory=self.output_dir,
+                                     postings_encoding=
+                                     self.postings_encoding) as index:
+                self.invert_write(td_pairs, index)
+                td_pairs = None
+        self.save()
+        with InvertedIndexWriter(self.index_name, directory=self.output_dir,
+                                 postings_encoding=
+                                 self.postings_encoding) as merged_index:
+            with contextlib.ExitStack() as stack:
+                indices = [stack.enter_context(
+                    InvertedIndexIterator(index_id,
+                                          directory=self.output_dir,
+                                          postings_encoding=
+                                          self.postings_encoding))
+                    for index_id in self.intermediate_indices]
+                self.merge(indices, merged_index)
 
     def parse_block(self,block_dir_relative):
         """Parses a tokenized text file into termID-docID pairs
@@ -275,23 +288,41 @@ class BSBIIndex:
 
         Returns
         -------
-        List[Tuple[Int, Int]]
+
+        List[(Int, Int)]
             Returns all the td_pairs extracted from the block
+            # used to be List[Tuple[Int, Int]]
 
         Should use self.term_id_map and self.doc_id_map to get termIDs and docIDs.
         These persist across calls to parse_block
         """
         result=[]
-        for filename in sorted(next(os.walk(block_dir_relative))[2]):
-            with open(block_dir_relative+'/'+filename, 'r') as fr:
-                docID = self.doc_id_map.__getitem__(filename)
-                words = nltk.word_tokenize(fr.read())
-                for word in words:
-                    # 返回一个词的id
-                    termID=self.term_id_map.__getitem__(word)
-                    result.append((termID,docID))
+        for filepath, dirs, fs in os.walk(block_dir_relative):
+            for filename in fs:
+                fullpath=os.path.join(filepath, filename)
+                with open(fullpath, 'r') as fr:
+                    docID = self.doc_id_map.__getitem__(fullpath)
+                    words = nltk.word_tokenize(fr.read())
+                    for word in words:
+                        # 返回一个词的id
+                        termID=self.term_id_map.__getitem__(word)
+                        result.append((termID,docID))
+
         return result
+
+    def invert_write(self, td_pairs, index):
+        """Inverts td_pairs into postings_lists and writes them to the given index
+
+        Parameters
+        ----------
+        td_pairs: List[Tuple[Int, Int]]
+            List of termID-docID pairs
+        index: InvertedIndexWriter
+            Inverted index on disk corresponding to the block
+        """
+
+
 
 if __name__ == '__main__':
     bsbi=BSBIIndex('toy-data','tmp','test')
-    print(bsbi.parse_block('0'))
+    print(bsbi.parse_block('toy-data'))
