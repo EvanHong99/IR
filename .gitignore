@@ -1,11 +1,13 @@
 # Created by .ignore support plugin (hsz.mobi)
-### Example user template template
-### Example user template
-
-# IntelliJ project files
-.idea
+hw4/dev_output/
+dev_queries/
+output_dir/
+tmp/
+toy-data/
+toy_output_dir/
+venv/
+.idea/
 *.iml
 out
 gen
-/venv
-
+.zip
