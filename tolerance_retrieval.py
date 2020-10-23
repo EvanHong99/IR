@@ -1,9 +1,6 @@
 
 
 
-# %% md
-
-# 作业一：布尔检索
 
 
 # %%
@@ -38,6 +35,8 @@ def get_words(text):
     # print(words)
     i = 0
     result = defaultdict(list)
+    double_word_result=defaultdict(list)
+    last_word=''
     # words = list(set(words).difference(set(sw)))  # 去停用词
     for word in words:
         result[word].append(i)
@@ -139,12 +138,14 @@ class BoolRetrieval:
             self.index = defaultdict(list)
             self.k_gram_val = defaultdict(list)
             self.soundex=defaultdict(list)
+            self.double_index=defaultdict(list)
 
         # 已有构建好的索引文件
         else:
             data = np.load(index_path, allow_pickle=True)
             self.files = data['files'][()]  # ()用来填充，否则报错。可以获取文件中所有该key下的内容，此处key为files
             self.index = data['index'][()]
+            self.double_index=data['double_index'][()]
             self.k_gram_val=data['k_gram'][()]
             self.soundex=data['soundex'][()]
             # print(self.index)
@@ -171,6 +172,7 @@ class BoolRetrieval:
         """
         self.files = get_files(text_dir)  # 获取所有文件名
         self.index = {}
+        self.double_index={}
         self.soundex={}
         for num in range(0, len(self.files)):
             f = open(self.files[num])
@@ -178,15 +180,15 @@ class BoolRetrieval:
             # words格式为：defaultdict(<class 'list'>, {'a': [0, 2], 'aa': [1, 3], 'b': [4], 'c': [5], 'd': [6],
             # 'e': [7], 'ff': [8], 'g': [9]})
             words = get_words(text)  # 分词
-
-            # 构建倒排索引、k-gram
-            for word in words.keys():
+            word_list=words.keys()
+            # 构建倒排索引、双词索引、k-gram
+            for word in word_list:
                 # self.index[word]={num:words.get(word)}
                 temp = {num: words.get(word)}
                 sound=soundex(word)
                 # print(temp)
                 #如果之前没有这个词，加入word
-                if self.index.get(word) == None:
+                if self.index.get(word) is None:
                     self.index[word] = temp
                 else:#若有这个词，则在对应的word下加入相应num和其值
                     self.index[word][num] = words.get(word)
@@ -201,6 +203,12 @@ class BoolRetrieval:
                     self.soundex[sound]=[word]
                 else:
                     self.soundex[sound].append(word)
+
+            # 双词索引只需要表示出双词所在的文档编号即可
+            for i in range(len(word_list)):
+                double_word=word_list[i]+word_list[i+1]
+                if self.double_index.get(double_word) is None:
+                    self.double_index[double_word]
 
 
         # print(self.files, self.index)
