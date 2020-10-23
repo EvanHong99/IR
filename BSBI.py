@@ -1,11 +1,15 @@
 
 # You can add additional imports here
+import re
 import sys
 import pickle as pkl
 import array
 import os
 import timeit
 import contextlib
+from string import punctuation
+
+import nltk
 
 class IdMap:
     """
@@ -65,17 +69,229 @@ class IdMap:
         else:
             raise TypeError
 
-if __name__ == '__main__':
 
-    testIdMap = IdMap()
-    assert testIdMap['a'] == 0, "Unable to add a new string to the IdMap"
-    assert testIdMap['bcd'] == 1, "Unable to add a new string to the IdMap"
-    # print(testIdMap['a'])
-    assert testIdMap['a'] == 0, "Unable to retrieve the id of an existing string"
-    assert testIdMap[1] == 'bcd', "Unable to retrive the string corresponding to a\
-                                    given id"
-    try:
-        testIdMap[2]
-    except IndexError as e:
-        assert True, "Doesn't throw an IndexError for out of range numeric ids"
-    assert len(testIdMap) == 2
+class UncompressedPostings:
+
+    @staticmethod
+    def encode(postings_list):
+        """Encodes postings_list into a stream of bytes
+
+
+        Parameters
+        ----------
+        postings_list: List[int]
+            List of docIDs (postings)
+
+        Returns
+        -------
+        bytes
+            bytearray representing integers in the postings_list
+        """
+        return array.array('L', postings_list).tobytes()
+
+    @staticmethod
+    def decode(encoded_postings_list):
+        """Decodes postings_list from a stream of bytes
+
+        Parameters
+        ----------
+        encoded_postings_list: bytes
+            bytearray representing encoded postings list as output by encode
+            function
+
+        Returns
+        -------
+        List[int]
+            Decoded list of docIDs from encoded_postings_list
+        """
+
+        decoded_postings_list = array.array('L')
+        decoded_postings_list.frombytes(encoded_postings_list)
+        return decoded_postings_list.tolist()
+
+
+class InvertedIndex:
+    """A class that implements efficient reads and writes of an inverted index
+    to disk
+
+    Attributes
+    ----------
+    postings_dict: Dictionary mapping: termID->(start_position_in_index_file,
+                                                number_of_postings_in_list,
+                                               length_in_bytes_of_postings_list)
+        termID是输入
+        This is a dictionary that maps from termIDs to a 3-tuple of metadata
+        that is helpful in reading and writing the postings in the index file
+        to/from disk. This mapping is supposed to be kept in memory.
+        start_position_in_index_file is the position (in bytes) of the postings
+        list in the index file
+        number_of_postings_in_list is the number of postings (docIDs) in the
+        postings list
+        length_in_bytes_of_postings_list is the length of the byte
+        encoding of the postings list
+
+    terms: List[int]
+        A list of termIDs to remember the order in which terms and their
+        postings lists were added to index.
+
+        After Python 3.7 we technically no longer need it because a Python dict
+        is an OrderedDict, but since it is a relatively new feature, we still
+        maintain backward compatibility with a list to keep track of order of
+        insertion.
+
+
+
+    """
+
+    def __init__(self, index_name, postings_encoding=None, directory=''):
+        """
+        Parameters
+        ----------
+        index_name :(str) Name used to store files related to the index
+        postings_encoding: A class implementing static methods for encoding and
+            decoding lists of integers. Default is None, which gets replaced
+            with UncompressedPostings
+        directory :(str) Directory where the index files will be stored
+        """
+
+        self.index_file_path = os.path.join(directory, index_name + '.index')
+        self.metadata_file_path = os.path.join(directory, index_name + '.dict')
+
+        if postings_encoding is None:
+            self.postings_encoding = UncompressedPostings
+        else:
+            self.postings_encoding = postings_encoding
+        self.directory = directory
+
+        self.postings_dict = {}
+        self.terms = []  # Need to keep track of the order in which the
+        # terms were inserted. Would be unnecessary
+        # from Python 3.7 onwards
+
+    def __enter__(self):
+        """Opens the index_file and loads metadata upon entering the context"""
+        # Open the index file
+        self.index_file = open(self.index_file_path, 'rb+')
+
+        # Load the postings dict and terms from the metadata file
+        with open(self.metadata_file_path, 'rb') as f:
+            self.postings_dict, self.terms = pkl.load(f)
+            self.term_iter = self.terms.__iter__()
+
+        return self
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        """Closes the index_file and saves metadata upon exiting the context"""
+        # Close the index file
+        self.index_file.close()
+
+        # Write the postings dict and terms to the metadata file
+        with open(self.metadata_file_path, 'wb') as f:
+            pkl.dump([self.postings_dict, self.terms], f)
+
+
+# Do not make any changes here, they will be overwritten while grading
+class BSBIIndex:
+    """
+    Attributes
+    ----------
+    term_id_map(IdMap): For mapping terms to termIDs
+    doc_id_map(IdMap): For mapping relative paths of documents (eg
+        0/3dradiology.stanford.edu_) to docIDs
+    data_dir(str): Path to data
+    output_dir(str): Path to output index files
+    index_name(str): Name assigned to index
+    postings_encoding: Encoding used for storing the postings.
+        The default (None) implies UncompressedPostings
+    """
+
+    def __init__(self, data_dir, output_dir, index_name="BSBI",
+                 postings_encoding=None):
+        self.term_id_map = IdMap()
+        self.doc_id_map = IdMap()
+        self.data_dir = data_dir
+        self.output_dir = output_dir
+        self.index_name = index_name
+        self.postings_encoding = postings_encoding
+
+        # Stores names of intermediate indices
+        self.intermediate_indices = []
+
+    def save(self):
+        """Dumps doc_id_map and term_id_map into output directory"""
+
+        with open(os.path.join(self.output_dir, 'terms.dict'), 'wb') as f:
+            pkl.dump(self.term_id_map, f)
+        with open(os.path.join(self.output_dir, 'docs.dict'), 'wb') as f:
+            pkl.dump(self.doc_id_map, f)
+
+    def load(self):
+        """Loads doc_id_map and term_id_map from output directory"""
+
+        with open(os.path.join(self.output_dir, 'terms.dict'), 'rb') as f:
+            self.term_id_map = pkl.load(f)
+        with open(os.path.join(self.output_dir, 'docs.dict'), 'rb') as f:
+            self.doc_id_map = pkl.load(f)
+
+    # def index(self):
+    #     """Base indexing code
+    #
+    #     This function loops through the data directories,
+    #     calls parse_block to parse the documents
+    #     calls invert_write, which inverts each block and writes to a new index
+    #     then saves the id maps and calls merge on the intermediate indices
+    #     """
+    #
+    #     # 从顶层目录开始解析
+    #     for block_dir_relative in sorted(next(os.walk(self.data_dir))[1]):
+    #         td_pairs = self.parse_block(block_dir_relative)
+    #         index_id = 'index_' + block_dir_relative
+    #         self.intermediate_indices.append(index_id)
+    #         with InvertedIndexWriter(index_id, directory=self.output_dir,
+    #                                  postings_encoding=
+    #                                  self.postings_encoding) as index:
+    #             self.invert_write(td_pairs, index)
+    #             td_pairs = None
+    #     self.save()
+    #     with InvertedIndexWriter(self.index_name, directory=self.output_dir,
+    #                              postings_encoding=
+    #                              self.postings_encoding) as merged_index:
+    #         with contextlib.ExitStack() as stack:
+    #             indices = [stack.enter_context(
+    #                 InvertedIndexIterator(index_id,
+    #                                       directory=self.output_dir,
+    #                                       postings_encoding=
+    #                                       self.postings_encoding))
+    #                 for index_id in self.intermediate_indices]
+    #             self.merge(indices, merged_index)
+
+    def parse_block(self,block_dir_relative):
+        """Parses a tokenized text file into termID-docID pairs
+
+        Parameters
+        ----------
+        block_dir_relative : str
+            Relative Path to the directory that contains the files for the block
+
+        Returns
+        -------
+        List[Tuple[Int, Int]]
+            Returns all the td_pairs extracted from the block
+
+        Should use self.term_id_map and self.doc_id_map to get termIDs and docIDs.
+        These persist across calls to parse_block
+        """
+        result=[]
+        for filename in sorted(next(os.walk(block_dir_relative))[2]):
+            with open(block_dir_relative+'/'+filename, 'r') as fr:
+                docID = self.doc_id_map.__getitem__(filename)
+                words = nltk.word_tokenize(fr.read())
+                for word in words:
+                    # 返回一个词的id
+                    termID=self.term_id_map.__getitem__(word)
+                    result.append((termID,docID))
+        return result
+
+if __name__ == '__main__':
+    bsbi=BSBIIndex('toy-data','tmp','test')
+    print(bsbi.parse_block('0'))

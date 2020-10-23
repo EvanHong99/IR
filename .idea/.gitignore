@@ -6,3 +6,15 @@
 /dataSources.local.xml
 # Editor-based HTTP Client requests
 /httpRequests/
+# Created by .ignore support plugin (hsz.mobi)
+hw4/dev_output/
+dev_queries/
+output_dir/
+tmp/
+toy-data/
+toy_output_dir/
+venv/
+.idea/
+out
+gen
+*.zip
