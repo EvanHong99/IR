@@ -6,8 +6,7 @@ tmp/
 toy-data/
 toy_output_dir/
 venv/
-../.idea/
-*.iml
+.idea/
 out
 gen
-.zip
+*.zip
