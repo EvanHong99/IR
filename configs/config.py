@@ -90,14 +90,3 @@ HEADERS = {
 # "http://ca.nankai.edu.cn" ,
 # "http://soft.nankai.edu.cn"
 # ]
-
-SEED_URL=["http://nkuefnew.nankai.edu.cn" ,
-"http://nyhd.nankai.edu.cn" ,
-"http://yqjj.nankai.edu.cn" ,
-"http://bksj.nankai.edu.cn" ,
-"http://wenchuang.nankai.edu.cn" ,
-"http://tyxx.nankai.edu.cn/tyexam" ,
-"http://www.lib.nankai.edu.cn" ,
-"http://weekly.nankai.edu.cn" ,
-"http://ca.nankai.edu.cn" ,
-"http://soft.nankai.edu.cn"]
