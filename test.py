@@ -70,9 +70,13 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
     #     finally:
     #         url_writer.close()
     def run(self):
+        global unused_url
+        global used_url
+        new_urls=[1]
         for i in range(10):
             threadLock.acquire()
-            unused_url.append(self.threadID)
+            unused_url = unused_url + new_urls
+            used_url = unused_url + new_urls
             print(unused_url)
             print(used_url)
             print()
@@ -138,12 +142,25 @@ def test_loop():
         print(t2 - t1)
 
 def test_sql():
+    connection = pymysql.connect(host='localhost',
+                                 port=3306,
+                                 user='root',
+                                 password='Qazwsxedcrfv0957',
+                                 db='everytinku',
+                                 charset='utf8',
+                                 cursorclass=pymysql.cursors.DictCursor
+                                 )
+    connection.autocommit(True)
+    with connection.cursor() as cursor:
+        # [('1','1','1'),('2','2','2')]
+        cursor.execute("insert into test1(column_1) value (%s);",['e'] )
 
-    df=pd.DataFrame([['a','a','a'],['a','a','a'],['a','a','a']], columns=['base url', 'hook', 'linked url'])
-    df.to_sql('test',engine.create_engine("mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku"),'everytinku','append',index=False)
+    # df=pd.DataFrame([['a','a','a'],['a','a','a'],['a','a','a']], columns=['base url', 'hook', 'linked url'])
+    # df.to_sql('test',engine.create_engine("mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku"),'everytinku','append',index=False)
 
 
 if __name__ == '__main__':
+
     # threads = []
     #
     # # 创建新线程
@@ -157,8 +174,12 @@ if __name__ == '__main__':
     # # 等待所有线程完成
     # for t in threads:
     #     t.join()
-    test_sql()
+    # test_loop()
+    # test_sql()
 
+    a=['1','2','3']
+    if '1' not in a:
+        print(1)
 
 
 

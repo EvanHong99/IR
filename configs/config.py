@@ -19,7 +19,7 @@ HEADERS = {
     'cache - control': 'max - age = 0'
 }
 
-THREADS_NUM=1
+THREADS_NUM=7
 
 #
 # http://xb.nankai.edu.cn

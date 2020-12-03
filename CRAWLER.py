@@ -40,17 +40,23 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
         self.counter = counter
 
     def run(self):
+        global unused_url
+        global used_url
         empty_times = 0
         new_urls=[]
         while True:
+            if_new = True
             try:
                 # 保证所有线程拿到的url不是相同的url
                 """取出一条url，同时更新两张表"""
                 threadLock.acquire()
+                #判断当前连接是否正常，否则自动重连
+                connection.ping()
+
                 # 新捕获的url加入到unused
                 # for newurl in new_urls:
                 if new_urls:
-                    cursor.executemany("insert into _unused_url (unused) values %s;",new_urls)
+                    cursor.executemany("insert into _unused_url (unused) value (%s);",new_urls)
                     unused_url=unused_url+new_urls
 
                 # 取出unused顶部url，然后将其立即加入used
@@ -62,8 +68,11 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
 
                 # cursor.execute("select used from _used_url;")
                 # used_url=cursor.fetchall()
-                used_url.append(url)
-                cursor.execute("insert into _used_url(used) value %s;",url)
+                if url in used_url:
+                    if_new=False
+                else:
+                    used_url.append(url)
+                    cursor.execute("insert into _used_url(used) value (%s);", [url])
 
                 threadLock.release()
                 # # 原来留有的url
@@ -94,8 +103,8 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                 # threadLock.release()
 
 
-                # 未被爬去过
-                if url not in used_url:
+                # 未被爬去过,且是南开站点
+                if if_new:
                     # if type(url)!=str:
                     #     logger.error("url is not a string, sleep for a sec")
                     #     time.sleep(1)
@@ -107,8 +116,8 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
 
                     soup = BeautifulSoup(page, 'lxml', from_encoding='utf-8')  # html.parser是解析器，也可是lxml
 
-                    # 将各种标签内的文字存入一个list
-                    strings = []
+                    # 将各种标签内的文字存入一个list,新版本为一个string
+                    strings = ''
                     for tag in ['title', 'a', 'div', 'li', 'span', 'p']:
                         strings += [i.string.strip() for i in soup.select(tag) if i.string and len(i.string) > 1]
                     str_df = pd.DataFrame([[url, strings]], columns=['base_url', 'keywords'])
@@ -117,7 +126,7 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                     links = pd.DataFrame(columns=['base url', 'hook', 'linked url'])
                     for item in soup.select('a'):
                         href = item.get('href')
-                        if href and href[:4] == 'http':
+                        if href and href[:4] == 'http' and ('nankai' in href):
                             links = links.append(
                                 pd.DataFrame([[url, item.string, href]], columns=['base url', 'hook', 'linked url']),
                                 ignore_index=True)
@@ -130,7 +139,7 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                     #  one contains strings (txt), another contains url-name pairs
                     # 不包含header，否则由于是a模式会导致header重复
                     threadLock1.acquire()
-                    str_df.to_csv("pages/_page_contents.csv", encoding='utf-8', index=False, mode='a',
+                    str_df.to_csv("pages/_new_page_contents.csv", encoding='utf-8', index=False, mode='a',
                                   header=False)
                     # links.to_csv(r"pages/_links.csv", encoding='utf-8', index=False, mode='a',
                     #           header=False)
@@ -182,7 +191,8 @@ def get_page(url, headers):
 
 
 if __name__ == '__main__':
-
+    # global unused_url
+    # global used_url
     try:
         # 连接数据库
         engine1=engine.create_engine("mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku")
@@ -193,6 +203,7 @@ if __name__ == '__main__':
                                      db='everytinku',
                                      charset='utf8',
                                      cursorclass=pymysql.cursors.DictCursor
+
                                      )
         connection.autocommit(True)
         with connection.cursor() as cursor:
@@ -217,7 +228,7 @@ if __name__ == '__main__':
             for t in threads:
                 t.join()
             print("Exiting Main Thread")
-
+            cursor.close()
     except Exception:
         logger.error(traceback.format_exc())
         exit(1)
