@@ -9,6 +9,8 @@ import pandas as pd
 import numpy as np
 from bs4 import BeautifulSoup
 import traceback
+import pymysql
+from sqlalchemy import engine
 
 formatter = logging.Formatter("%(asctime)s|%(name)-12s|%(message)s", "%F %T")
 logger = logging.getLogger("default")
@@ -43,46 +45,66 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
         while True:
             try:
                 # 保证所有线程拿到的url不是相同的url
+                """取出一条url，同时更新两张表"""
                 threadLock.acquire()
-                # 原来留有的url+新捕获的url
-                unused_url = pd.read_csv("pages/_unused_url.csv", encoding='utf-8')
-                unused_url=unused_url.append(new_urls)
-                
-                used_url = pd.read_csv("pages/_used_url.csv", encoding='utf-8')
-                # print(type(unused_url), unused_url)
-                # print(used_url)
+                # 新捕获的url加入到unused
+                # for newurl in new_urls:
+                if new_urls:
+                    cursor.executemany("insert into _unused_url (unused) values %s;",new_urls)
+                    unused_url=unused_url+new_urls
 
-                # 若出现错误，进行只读操作，不会写入新数据
-                if not unused_url.size:
-                    if empty_times == 1000:
-                        if threadLock.locked():
-                            threadLock.release()
-                        break
-                    empty_times += 1
-                    raise Exception("unused url list is null")
-                # 将计数器置零，防止累积
-                empty_times=0
-                url = unused_url.head(1)
-                unused_url.drop(index=unused_url.index[0], inplace=True)
-                # unused_url.pop(url.index)
+                # 取出unused顶部url，然后将其立即加入used
+                # cursor.execute("select _unused_url.unused from _unused_url limit 1;")
+                # returns a dict, loc to string
+                # url = cursor.fetchone()['unused']
+                url=unused_url.pop(0)
+                cursor.execute("delete from _unused_url limit 1;")
 
-                # 不论是否获取成功，直接加入used
-                used_url = used_url.append(url.rename(columns={'unused': 'used'}), ignore_index=True)
-                # print(used_url)
+                # cursor.execute("select used from _used_url;")
+                # used_url=cursor.fetchall()
+                used_url.append(url)
+                cursor.execute("insert into _used_url(used) value %s;",url)
 
-                # 立即写入，保证下一个线程或得到不一样的url。可以保留header，因为每次都是覆盖，对比下面的df
-                used_url.to_csv("pages/_used_url.csv", encoding='utf-8', index=False)
-                unused_url.to_csv("pages/_unused_url.csv", encoding='utf-8', index=False)
                 threadLock.release()
+                # # 原来留有的url
+                # unused_url = pd.read_csv("pages/_unused_url.csv", encoding='utf-8',delimiter=' ')
+                # unused_url=unused_url.append(pd.DataFrame(new_urls,columns=['unused']),ignore_index=True)
+                #                 # used_url = pd.read_csv("pages/_used_url.csv", encoding='utf-8',delimiter=' ')
 
-                url = url.values.tolist()[0]
-                if url not in list(used_url.values[:, 0]):
-                    url=url[0]
+                # # 若出现错误，进行只读操作，不会写入新数据
+                # if not unused_url.size:
+                #     if empty_times == 1000:
+                #         if threadLock.locked():
+                #             threadLock.release()
+                #         break
+                #     empty_times += 1
+                #     raise Exception("unused url list is null")
+                # # 将计数器置零，防止累积
+                # empty_times=0
+                # unused_url.drop(index=unused_url.index[0], inplace=True)
+                # # unused_url.pop(url.index)
+                #
+                # # 不论是否获取成功，直接加入used
+                # used_url = used_url.append(url.rename(columns={'unused': 'used'}), ignore_index=True)
+                # # print(used_url)
+                #
+                # # 立即写入，保证下一个线程或得到不一样的url。可以保留header，因为每次都是覆盖，对比下面的df
+                # used_url.to_csv("pages/_used_url.csv", encoding='utf-8', index=False)
+                # unused_url.to_csv("pages/_unused_url.csv", encoding='utf-8', index=False)
+                # threadLock.release()
+
+
+                # 未被爬去过
+                if url not in used_url:
+                    # if type(url)!=str:
+                    #     logger.error("url is not a string, sleep for a sec")
+                    #     time.sleep(1)
                     page = get_page(url, config.HEADERS)
                     if not page:
                         logger.warning(url + "  is empty")
                         time.sleep(3)
                         continue
+
                     soup = BeautifulSoup(page, 'lxml', from_encoding='utf-8')  # html.parser是解析器，也可是lxml
 
                     # 将各种标签内的文字存入一个list
@@ -110,8 +132,12 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                     threadLock1.acquire()
                     str_df.to_csv("pages/_page_contents.csv", encoding='utf-8', index=False, mode='a',
                                   header=False)
-                    links.to_csv(r"pages/_links.csv", encoding='utf-8', index=False, mode='a',
-                              header=False)
+                    # links.to_csv(r"pages/_links.csv", encoding='utf-8', index=False, mode='a',
+                    #           header=False)
+                    links.to_sql('_links',engine1,'everytinku','append',index=False)
+
+
+                    # cursor.executemany("insert into _links(`base url`, hook, `linked url`) values (?,?,?);",)
                     threadLock1.release()
                     logger.debug("write" + str(self.threadID) + url)
 
@@ -157,17 +183,41 @@ def get_page(url, headers):
 
 if __name__ == '__main__':
 
-    threads = []
+    try:
+        # 连接数据库
+        engine1=engine.create_engine("mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku")
+        connection = pymysql.connect(host='localhost',
+                                     port=3306,
+                                     user='root',
+                                     password='Qazwsxedcrfv0957',
+                                     db='everytinku',
+                                     charset='utf8',
+                                     cursorclass=pymysql.cursors.DictCursor
+                                     )
+        connection.autocommit(True)
+        with connection.cursor() as cursor:
+            # 先初始化内存，维护两个列表。所有线程共享
+            cursor.execute("select used from _used_url;")
+            used_url = list(map(lambda d: d.get('used'), cursor.fetchall()))
 
-    # 创建新线程
-    for i in range(7):
-        threads.append(myThread(i, "thread-" + str(i), i))
+            cursor.execute("select unused from _unused_url;")
+            unused_url = list(map(lambda d: d.get('unused'), cursor.fetchall()))
 
-    # 开启新线程
-    for thread in threads:
-        thread.start()
+            threads = []
 
-    # 等待所有线程完成
-    for t in threads:
-        t.join()
-    print("Exiting Main Thread")
+            # 创建新线程
+            for i in range(config.THREADS_NUM):
+                threads.append(myThread(i, "thread-" + str(i), i))
+
+            # 开启新线程
+            for thread in threads:
+                thread.start()
+
+            # 等待所有线程完成
+            for t in threads:
+                t.join()
+            print("Exiting Main Thread")
+
+    except Exception:
+        logger.error(traceback.format_exc())
+        exit(1)

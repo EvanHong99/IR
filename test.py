@@ -4,11 +4,9 @@ import logging
 import logging.handlers
 from configs import config
 import threading
-import csv
-import re
-from bs4 import BeautifulSoup
-import bs4
+import pymysql
 import pandas as pd
+from sqlalchemy import engine
 
 formatter = logging.Formatter("%(asctime)s|%(name)-12s|%(message)s", "%F %T")
 logger = logging.getLogger("default")
@@ -22,7 +20,7 @@ logger.addHandler(log_mem_handler)
 logger.addHandler(log_file_handler)
 
 threadLock = threading.Lock()
-unused_url = config.SEED_URL * 10
+unused_url = []
 used_url = []
 
 
@@ -72,15 +70,15 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
     #     finally:
     #         url_writer.close()
     def run(self):
-        try:
+        for i in range(10):
             threadLock.acquire()
-            print(self.threadID)
-            raise Exception
-        except Exception:
-            print("exception")
-            time.sleep(3)
-            print("release")
+            unused_url.append(self.threadID)
+            print(unused_url)
+            print(used_url)
+            print()
             threadLock.release()
+            time.sleep(1)
+
 
 
 def get_page(url, headers, times=0):
@@ -109,14 +107,47 @@ def get_page(url, headers, times=0):
         return None
 
 
-# def parse_page(page):
+def test_loop():
+    connection = pymysql.connect(host='localhost',
+                                 port=3306,
+                                 user='root',
+                                 password='Qazwsxedcrfv0957',
+                                 db='everytinku',
+                                 charset='utf8',
+                                 cursorclass=pymysql.cursors.DictCursor
+                                 )
+    connection.autocommit(True)
+    with connection.cursor() as cursor:
+        print("sql")
+        t1=time.time()
+        for i in range(100):
+
+            cursor.execute("select unused from _unused_url where unused='http://fdy.nankai.edu.cn';")
+
+        t2=time.time()
+        print(t2-t1)
+        print("if in")
+        cursor.execute("select unused from _unused_url;")
+        unused_url = list(map(lambda d: d.get('unused'), cursor.fetchall()))
+
+        t1 = time.time()
+        for i in range(100):
+            if 'http://fdy.nankai.edu.cn' in unused_url:
+                pass
+        t2 = time.time()
+        print(t2 - t1)
+
+def test_sql():
+
+    df=pd.DataFrame([['a','a','a'],['a','a','a'],['a','a','a']], columns=['base url', 'hook', 'linked url'])
+    df.to_sql('test',engine.create_engine("mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku"),'everytinku','append',index=False)
 
 
 if __name__ == '__main__':
     # threads = []
     #
     # # 创建新线程
-    # for i in range(2):
+    # for i in range(7):
     #     threads.append(myThread(i, "thread-" + str(i), i))
     #
     # # 开启新线程
@@ -126,16 +157,8 @@ if __name__ == '__main__':
     # # 等待所有线程完成
     # for t in threads:
     #     t.join()
-    # print("Exiting Main Thread")
-    # unused_url = pd.read_csv("pages/_unused_url.csv", "r", encoding='utf-8')
-    # used_url = pd.read_csv("pages/_used_url.csv", "r", encoding='utf-8')
-    # print(type(unused_url))
-    # print(unused_url)
-    # print(used_url)
+    test_sql()
 
-    df=pd.DataFrame([1,2,3],columns=['a'])
-    df1=pd.DataFrame([1,2,3],columns=['b'])
-    t=df.head(1).rename(columns={'a':'b'})
-    df1=df1.append(t,ignore_index=True)
-    print(df1)
+
+
 
