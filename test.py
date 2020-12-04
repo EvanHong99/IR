@@ -153,7 +153,22 @@ def test_sql():
     connection.autocommit(True)
     with connection.cursor() as cursor:
         # [('1','1','1'),('2','2','2')]
-        cursor.execute("insert into test1(column_1) value (%s);",['e'] )
+        cursor.execute("select * from _unused_url limit 1000;")
+        unused_url= list(map(lambda d: d.get('unused'), cursor.fetchall()))
+        cursor.execute("select used from _used_url;")
+        used_url = list(map(lambda d: d.get('used'), cursor.fetchall()))
+        righttimes=0
+        for i in range(1000):
+            url=unused_url.pop(0)
+            cursor.execute("select * from _used_url where used=(%s)",url)
+            res=cursor.fetchone()
+            if res:
+                res=['used']
+            if (res and (url in used_url)) or (not res and (url not in used_url)):
+                righttimes+=1
+
+        print(righttimes)
+
 
     # df=pd.DataFrame([['a','a','a'],['a','a','a'],['a','a','a']], columns=['base url', 'hook', 'linked url'])
     # df.to_sql('test',engine.create_engine("mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku"),'everytinku','append',index=False)
@@ -175,11 +190,7 @@ if __name__ == '__main__':
     # for t in threads:
     #     t.join()
     # test_loop()
-    # test_sql()
-
-    a=['1','2','3']
-    if '1' not in a:
-        print(1)
+    test_sql()
 
 
 
