@@ -190,7 +190,35 @@ if __name__ == '__main__':
     # for t in threads:
     #     t.join()
     # test_loop()
-    test_sql()
-
-
-
+    # test_sql()
+    import urllib.parse
+    import os
+    # t=urllib.parse.unquote('http-\less.nankai.edu.cn/equipment?tag=%E5%85%89%E8%B0%B1%E4%BB%AA%E5%99%A8')
+    # t='pages/page_txt'+t+'.txt'
+    # print(t)
+    href='/sddfgg/ad.htm'
+    if (href[0] == '/' and '.htm' in href[-5:]):
+        print(href)
+        requests.get()
+    # with open(p,'w',encoding='utf-8') as fw:
+    #     fw.write(p)
+# import hashlib
+#
+#
+# def url2filename(url):
+#     '''基于MD5将url映射为唯一文件名
+#
+#     :param url: str
+#     :return: str
+#     '''
+#
+#     filename = hashlib.md5(url.encode('utf-8')).hexdigest()
+#     return filename
+#
+# def filename2url(filename):
+#
+#     # return hashlib.
+#     pass
+# if __name__ == '__main__':
+#     filename = url2filename('https://www.baidu.com')
+#     print(filename)
