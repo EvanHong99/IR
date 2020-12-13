@@ -9,6 +9,8 @@ import timeit
 import contextlib
 from string import punctuation
 import time
+import jieba
+import json
 
 # import nltk
 from collections import defaultdict
@@ -71,6 +73,15 @@ class IdMap:
             return self._get_id(key)
         else:
             raise TypeError
+
+    def save(self, filepath):
+        with open(os.path.join(filepath, 'docs.dict'), 'wb') as f:
+            pkl.dump(self, f)
+
+    def load(self, filepath):
+        """Loads doc_id_map and term_id_map from output directory"""
+        with open(os.path.join(filepath, 'docs.dict'), 'rb') as f:
+            self = pkl.load(f)
 
 
 class UncompressedPostings:
@@ -263,6 +274,10 @@ class BSBIIndex:
     index_name(str): Name assigned to index
     postings_encoding: Encoding used for storing the postings.
         The default (None) implies UncompressedPostings
+
+    term_tf_docid: dict { key=termid, value=(tf, [doc id list])}
+
+    term_tfidf: dict {termID: tfidf}
     """
 
     def __init__(self, data_dir, output_dir, index_name="BSBI",
@@ -277,15 +292,28 @@ class BSBIIndex:
         # Stores names of intermediate indices
         self.intermediate_indices = []
 
+        # { key=termid, value=(tf, [doc id list])}
+        self.term_tf_docid = defaultdict(lambda :[0,set()])
+        self.term_tfidf={}
+
     def save(self):
         """
         都是单独的map，而非倒排索引表
         Dumps doc_id_map and term_id_map into output directory"""
 
+        def set_default(obj):
+            if isinstance(obj, set):
+                return list(obj)
+            raise TypeError
+
         with open(os.path.join(self.output_dir, 'terms.dict'), 'wb') as f:
             pkl.dump(self.term_id_map, f)
         with open(os.path.join(self.output_dir, 'docs.dict'), 'wb') as f:
             pkl.dump(self.doc_id_map, f)
+        with open(os.path.join(self.output_dir, 'term_tf_doclist.dict'), 'wb') as f:
+            pkl.dump(json.dumps(self.term_tf_docid,default=set_default), f)
+        with open(os.path.join(self.output_dir, 'term_tfidf.dict'), 'wb') as f:
+            pkl.dump(json.dumps(self.term_tfidf),f)
 
     def load(self):
         """Loads doc_id_map and term_id_map from output directory"""
@@ -294,6 +322,10 @@ class BSBIIndex:
             self.term_id_map = pkl.load(f)
         with open(os.path.join(self.output_dir, 'docs.dict'), 'rb') as f:
             self.doc_id_map = pkl.load(f)
+        with open(os.path.join(self.output_dir, 'term_tf_doclist.dict'), 'rb') as f:
+            self.term_tf_docid=dict(json.loads(pkl.load(f)))
+        with open(os.path.join(self.output_dir, 'term_tfidf.dict'), 'rb') as f:
+            self.term_tfidf=dict(json.loads(pkl.load(f)))
 
     def merge(self, indices, merged_index):
         """
@@ -354,7 +386,7 @@ class BSBIIndex:
             merged_index.append(termid, sorted(pl))
             # print(termid)
 
-    def index(self, is_indexed=True):
+    def index(self, is_indexed=True,stopwords_path=None):
         """Base indexing code
 
         既然我们知道文档列表已经排过序了，那么我们可以在线性时间内对它们进行合并排序。
@@ -376,21 +408,35 @@ class BSBIIndex:
         # 从顶层目录开始解析
         # 选择性地打开此开关
         if not is_indexed:
-            for block_dir_relative in sorted(next(os.walk(self.data_dir))[1]):
-                time_start = time.time()
+            # for block_dir_relative in sorted(next(os.walk(self.data_dir))[1]):
+            #     time_start = time.time()
+            #
+            #     td_pairs = self.parse_block(self.data_dir + '/' + block_dir_relative + '/')
+            #
+            #     index_id = 'index_' + block_dir_relative
+            #     self.intermediate_indices.append(index_id)
+            #     # 将一个目录下的文件写入磁盘
+            #     with InvertedIndexWriter(index_id, directory=self.output_dir,
+            #                              postings_encoding=
+            #                              self.postings_encoding) as index:
+            #         self.invert_write(td_pairs, index)  # 应该没问题了
+            #         td_pairs = None
+            #     time_end = time.time()
+            #     print("time=", time_end - time_start)
+            time_start = time.time()
 
-                td_pairs = self.parse_block(self.data_dir + '/' + block_dir_relative + '/')
+            td_pairs = self.parse_block(self.data_dir + '/' ,stopwords_path=stopwords_path)
 
-                index_id = 'index_' + block_dir_relative
-                self.intermediate_indices.append(index_id)
-                # 将一个目录下的文件写入磁盘
-                with InvertedIndexWriter(index_id, directory=self.output_dir,
-                                         postings_encoding=
-                                         self.postings_encoding) as index:
-                    self.invert_write(td_pairs, index)  # 应该没问题了
-                    td_pairs = None
-                time_end = time.time()
-                print("time=", time_end - time_start)
+            index_id = 'index_'
+            self.intermediate_indices.append(index_id)
+            # 将一个目录下的文件写入磁盘
+            with InvertedIndexWriter(index_id, directory=self.output_dir,
+                                     postings_encoding=
+                                     self.postings_encoding) as index:
+                self.invert_write(td_pairs, index)  # 应该没问题了
+                td_pairs = None
+            time_end = time.time()
+            print("time=", time_end - time_start)
             self.save()
             with InvertedIndexWriter(self.index_name, directory=self.output_dir,
                                      postings_encoding=
@@ -411,10 +457,16 @@ class BSBIIndex:
                     time_end = time.time()
                     print("time=", time_end - time_start)
 
-    def parse_block(self, block_dir_relative):
+    def parse_block(self, block_dir_relative, stopwords_path=None):
         """
+        维护self.term_tf_docid and self.term_tfidf
         仅返回td pairs的list，非倒排索引表，未进行文档去重
+        会维护self的几个变量
         Parses a tokenized text file into termID-docID pairs
+
+        Attention
+        ---------
+        对函数内部接口均为docID和termID，对外为filename（由数据库维护其映射）
 
         Parameters
         ----------
@@ -431,21 +483,35 @@ class BSBIIndex:
         Should use self.term_id_map and self.doc_id_map to get termIDs and docIDs.
         These persist across calls to parse_block
         """
+        global stop_words
         result = []
+        if stopwords_path:
+            stop_words = [sw.replace('\n', '') for sw in open(stopwords_path, encoding='utf-8').readlines()]
         for filepath, dirs, fs in os.walk(block_dir_relative):
             for filename in fs:
                 fullpath = os.path.join(filepath, filename)
-                with open(fullpath, 'r',encoding='utf-8') as fr:
-                    docID = self.doc_id_map.__getitem__(fullpath)
+                with open(fullpath, 'r', encoding='utf-8') as fr:
+                    docID = self.doc_id_map.__getitem__(filename)
+                    # docID = self.doc_id_map.__getitem__(filename[:-4].replace("+",'/').replace('-',':',1).replace(',','=').replace('\'','?'))
                     # pattern=re.compile('\S*?')
                     # words = pattern.findall(fr.read())
-                    words = fr.read().strip().split(' ')
+                    words_list = jieba.cut_for_search(fr.read().strip())
+                    if stopwords_path:
+                        words = [w for w in words_list if w != ' ' and w not in stop_words]
+                    else:
+                        words = [w for w in words_list if w != ' ']
+
                     print(words)
                     # print(words)
                     for word in words:
                         # 返回一个词的id
                         termID = self.term_id_map.__getitem__(word)
                         result.append((termID, docID))
+                        self.term_tf_docid[termID][0]+=1
+                        self.term_tf_docid[termID][1].add(docID)
+        # 计算tfidf
+        for termID,docID in result:
+            self.term_tfidf[termID]=log(len(self.doc_id_map)/len(self.term_tf_docid[termID][1]))
 
         return result
 
@@ -498,25 +564,44 @@ class BSBIIndex:
         if len(self.term_id_map) == 0 or len(self.doc_id_map) == 0:
             self.load()
 
-        ### Begin your code
-        terms = query.split(' ')
-        with InvertedIndexMapper(self.index_name, self.postings_encoding, directory=self.output_dir) as iim:
-            res = []
+        if isinstance(query,str):
+            ### Begin your code
+            terms = query.split(' ')
+            with InvertedIndexMapper(self.index_name, self.postings_encoding, directory=self.output_dir) as iim:
+                res = []
 
-            for term in terms:
-                try:
-                    termid = self.term_id_map.str_to_id[term]
-                    if not res:
-                        res = iim._get_postings_list(termid)
-                    else:
-                        res = sorted_intersect(res, iim._get_postings_list(termid))
-                except Exception:
-                    print(term, '没找到')
-                    continue
-            # 未在sorted intersection函数中保证res的有序，但是在invert write保证了有序
-            r = [self.doc_id_map.id_to_str[r] for r in res]
-            return r
-        ### End your code
+                for term in terms:
+                    try:
+                        termid = self.term_id_map.str_to_id[term]
+                        if not res:
+                            res = iim._get_postings_list(termid)
+                        else:
+                            res = sorted_intersect(res, iim._get_postings_list(termid))
+                    except Exception:
+                        print(term, '没找到')
+                        continue
+                # 未在sorted intersection函数中保证res的有序，但是在invert write保证了有序
+                r = [self.doc_id_map.id_to_str[r] for r in res]
+                return r
+            ### End your code
+        if isinstance(query,list):
+            with InvertedIndexMapper(self.index_name, self.postings_encoding, directory=self.output_dir) as iim:
+                res = []
+
+                for term in query:
+                    try:
+                        termid = self.term_id_map.str_to_id[term]
+                        if not res:
+                            res = iim._get_postings_list(termid)
+                        else:
+                            res = sorted_intersect(res, iim._get_postings_list(termid))
+                    except Exception:
+                        print(term, '没找到')
+                        continue
+                # 未在sorted intersection函数中保证res的有序，但是在invert write保证了有序
+                r = [self.doc_id_map.id_to_str[r] for r in res]
+                return r
+
 
 
 def sorted_intersect(list1, list2):
@@ -874,6 +959,11 @@ if __name__ == '__main__':
     #  将数据库中的数据导出为文件（或者修改源程序使支持数据库内数据建倒排索引），直接用这个函数就可以构建好倒排索引
     #  计算PageRank（networkx）并保存，计算文档向量（gensim）并保存
     #  根据查询，返回url，根据url，获取PageRank、文档向量，进行相乘，评分，返回用户
-    BSBI_instance = BSBIIndex(data_dir='pages/test', output_dir='index/test',index_name='test', postings_encoding=None)
-    BSBI_instance.index(is_indexed=True)
-    print(BSBI_instance.retrieve('信息公开 图书馆 English'))
+    BSBI_instance = BSBIIndex(data_dir='pages/test', output_dir='index/test', index_name='test', postings_encoding=None)
+    BSBI_instance.index(is_indexed=True,stopwords_path='stopwords.txt')
+    print(jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青',cut_all=True))
+    print(''.join(jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青')))
+    print(BSBI_instance.retrieve(''.join(jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青'))))
+    print(BSBI_instance.term_tfidf[str(BSBI_instance.term_id_map.__getitem__('南开大学'))])
+    # print(BSBI_instance.term_tf_docid[BSBI_instance.term_id_map.__getitem__('南开大学')][0])
+    # print(BSBI_instance.term_tf_docid[BSBI_instance.term_id_map.__getitem__('南开大学')][1])

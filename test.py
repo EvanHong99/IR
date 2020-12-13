@@ -196,29 +196,29 @@ if __name__ == '__main__':
     # t=urllib.parse.unquote('http-\less.nankai.edu.cn/equipment?tag=%E5%85%89%E8%B0%B1%E4%BB%AA%E5%99%A8')
     # t='pages/page_txt'+t+'.txt'
     # print(t)
-    href='/sddfgg/ad.htm'
-    if (href[0] == '/' and '.htm' in href[-5:]):
-        print(href)
-        requests.get()
-    # with open(p,'w',encoding='utf-8') as fw:
-    #     fw.write(p)
-# import hashlib
-#
-#
-# def url2filename(url):
-#     '''基于MD5将url映射为唯一文件名
-#
-#     :param url: str
-#     :return: str
-#     '''
-#
-#     filename = hashlib.md5(url.encode('utf-8')).hexdigest()
-#     return filename
-#
-# def filename2url(filename):
-#
-#     # return hashlib.
-#     pass
-# if __name__ == '__main__':
-#     filename = url2filename('https://www.baidu.com')
-#     print(filename)
+    import pickle as pkl
+    from collections import defaultdict
+    import dill
+    def dd():
+        return [0, []]
+    # term_tf_docid = defaultdict(dd)
+    term_tf_docid = defaultdict(lambda: [0, []])
+
+    import json
+    term_tf_docid[1][0]+=1
+    term_tf_docid[1][1].append(1)
+
+
+
+    with open(os.path.join('index/test/', 'term_tf_doclist.dict'), 'wb') as f:
+        # pkl.dump(pkl.dumps(term_tf_docid),f)
+        # print(pkl.dumps(term_tf_docid))
+        pkl.dump(json.dumps(term_tf_docid),f)
+
+    with open(os.path.join('index/test/', 'term_tf_doclist.dict'), 'rb') as f:
+        res=pkl.load(f)
+        print(res)
+        d=dict(json.loads(res))
+        print(type(d['1'][1]))
+
+    print()

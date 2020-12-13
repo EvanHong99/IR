@@ -190,7 +190,6 @@ def cmp(e1, e2):
 class TfIdf(object):
     def __init__(self, idf_dic, default_idf, word_list, keyword_num):
         """
-
         :param idf_dic: 训练好的字典
         :param default_idf: 默认idf
         :param word_list: 待提取文本
