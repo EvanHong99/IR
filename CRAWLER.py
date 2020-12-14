@@ -3,7 +3,7 @@ import requests
 import time
 import logging
 import logging.handlers
-from configs import config
+from configs import my_config
 import threading
 import re
 import pandas as pd
@@ -163,7 +163,7 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                 # TODO 检查pdf doc爬取正确性
                 # 未被爬去过,且是南开站点
                 if if_new:
-                    page = get_page(url, config.HEADERS)
+                    page = get_page(url, my_config.HEADERS)
                     if not page:
                         logger.warning(url + "  is empty")
                         time.sleep(3)
@@ -231,6 +231,7 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                         # url=urllib.parse.unquote(url)
                         # 对于不符合windows文件命名规范的直接抛弃
                         repl_url = "pages/12_13_16_42/" +str(doc_id)+".txt"
+                        retrieve_url = "pages/retrieve/" +str(doc_id)+".txt"
                         # repl_url = "pages/new_page_txt/" + url.replace('/', "+").replace(':', '-').replace('=',
                         #                                                                                    ',').replace(
                         #     '?', '\'') + ".txt"
@@ -239,6 +240,10 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                         with open(file=repl_url, mode='w', encoding='utf-8') as fw:
                             fw.write(strings)
                             fw.close()
+                        with open(file=repl_url, mode='w', encoding='utf-8') as fw:
+                            fw.write(strings)
+                            fw.close()
+
 
                         links.to_sql('links', engine1, 'everytinku', 'append', index=False)
                         pdfs.to_sql('pdfs', engine1, 'everytinku', 'append', index=False)
@@ -287,22 +292,11 @@ def get_page(url, headers):
 
 
 if __name__ == '__main__':
-    # global unused_url
-    # global used_url
     try:
         # 连接数据库
         engine1 = engine.create_engine("mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku")
-        connection = pymysql.connect(host='localhost',
-                                     port=3306,
-                                     user='root',
-                                     password='Qazwsxedcrfv0957',
-                                     db='everytinku',
-                                     charset='utf8',
-                                     cursorclass=pymysql.cursors.DictCursor,
 
-                                     )
-        connection.autocommit(True)
-        with connection.cursor() as cursor:
+        with my_config.connection.cursor() as cursor:
             # 先初始化内存，维护两个列表。所有线程共享
             cursor.execute("select used from used_url;")
             used_url = list(map(lambda d: d.get('used'), cursor.fetchall()))
@@ -313,7 +307,7 @@ if __name__ == '__main__':
             threads = []
 
             # 创建新线程
-            for i in range(config.THREADS_NUM):
+            for i in range(my_config.THREADS_NUM):
             # for i in range(1):
                 threads.append(myThread(i, "thread-" + str(i), i))
 

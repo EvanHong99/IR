@@ -11,4 +11,4 @@
 '''
 
 # 指定默认需要导入的模块
-import configs.config
+import configs.my_config

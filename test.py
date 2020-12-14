@@ -2,7 +2,7 @@ import requests
 import time
 import logging
 import logging.handlers
-from configs import config
+from configs import my_config
 import threading
 import pymysql
 import pandas as pd
@@ -191,34 +191,39 @@ if __name__ == '__main__':
     #     t.join()
     # test_loop()
     # test_sql()
-    import urllib.parse
-    import os
-    # t=urllib.parse.unquote('http-\less.nankai.edu.cn/equipment?tag=%E5%85%89%E8%B0%B1%E4%BB%AA%E5%99%A8')
-    # t='pages/page_txt'+t+'.txt'
-    # print(t)
-    import pickle as pkl
-    from collections import defaultdict
-    import dill
-    def dd():
-        return [0, []]
-    # term_tf_docid = defaultdict(dd)
-    term_tf_docid = defaultdict(lambda: [0, []])
-
-    import json
-    term_tf_docid[1][0]+=1
-    term_tf_docid[1][1].append(1)
 
 
+    # import urllib.parse
+    # import os
+    # # t=urllib.parse.unquote('http-\less.nankai.edu.cn/equipment?tag=%E5%85%89%E8%B0%B1%E4%BB%AA%E5%99%A8')
+    # # t='pages/page_txt'+t+'.txt'
+    # # print(t)
+    # import pickle as pkl
+    # from collections import defaultdict
+    # import dill
+    # def dd():
+    #     return [0, []]
+    # # term_tf_docid = defaultdict(dd)
+    # term_tf_docid = defaultdict(lambda: [0, []])
+    #
+    # import json
+    # term_tf_docid[1][0]+=1
+    # term_tf_docid[1][1].append(1)
+    #
+    #
+    #
+    # with open(os.path.join('index/test/', 'term_tf_doclist.dict'), 'wb') as f:
+    #     # pkl.dump(pkl.dumps(term_tf_docid),f)
+    #     # print(pkl.dumps(term_tf_docid))
+    #     pkl.dump(json.dumps(term_tf_docid),f)
+    #
+    # with open(os.path.join('index/test/', 'term_tf_doclist.dict'), 'rb') as f:
+    #     res=pkl.load(f)
+    #     print(res)
+    #     d=dict(json.loads(res))
+    #     print(type(d['1'][1]))
+    #
+    # print()
 
-    with open(os.path.join('index/test/', 'term_tf_doclist.dict'), 'wb') as f:
-        # pkl.dump(pkl.dumps(term_tf_docid),f)
-        # print(pkl.dumps(term_tf_docid))
-        pkl.dump(json.dumps(term_tf_docid),f)
-
-    with open(os.path.join('index/test/', 'term_tf_doclist.dict'), 'rb') as f:
-        res=pkl.load(f)
-        print(res)
-        d=dict(json.loads(res))
-        print(type(d['1'][1]))
-
-    print()
+    import jieba
+    print([i for i in jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青') if i !=' '])

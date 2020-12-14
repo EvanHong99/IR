@@ -267,8 +267,8 @@ class BSBIIndex:
     Attributes
     ----------
     term_id_map(IdMap): For mapping terms to termIDs
-    doc_id_map(IdMap): For mapping relative paths of documents (eg
-        0/3dradiology.stanford.edu_) to docIDs
+    doc_id_map(IdMap): For mapping relative paths of documents
+        eg: 12345.txt - docID
     data_dir(str): Path to data
     output_dir(str): Path to output index files
     index_name(str): Name assigned to index
@@ -277,7 +277,7 @@ class BSBIIndex:
 
     term_tf_docid: dict { key=termid, value=(tf, [doc id list])}
 
-    term_tfidf: dict {termID: tfidf}
+    term_idf: dict {termID: tfidf}
     """
 
     def __init__(self, data_dir, output_dir, index_name="BSBI",
@@ -293,8 +293,10 @@ class BSBIIndex:
         self.intermediate_indices = []
 
         # { key=termid, value=(tf, [doc id list])}
-        self.term_tf_docid = defaultdict(lambda :[0,set()])
-        self.term_tfidf={}
+        self.term_tf_docid = defaultdict(lambda: [0, set()])
+        # TODO 这里本来是  self.term_idf = {}，不会报错
+        self.term_idf = defaultdict(float)
+        self.docid_terms_tfs = defaultdict(lambda: defaultdict(int))
 
     def save(self):
         """
@@ -311,9 +313,11 @@ class BSBIIndex:
         with open(os.path.join(self.output_dir, 'docs.dict'), 'wb') as f:
             pkl.dump(self.doc_id_map, f)
         with open(os.path.join(self.output_dir, 'term_tf_doclist.dict'), 'wb') as f:
-            pkl.dump(json.dumps(self.term_tf_docid,default=set_default), f)
-        with open(os.path.join(self.output_dir, 'term_tfidf.dict'), 'wb') as f:
-            pkl.dump(json.dumps(self.term_tfidf),f)
+            pkl.dump(json.dumps(self.term_tf_docid, default=set_default), f)
+        with open(os.path.join(self.output_dir, 'term_idf.dict'), 'wb') as f:
+            pkl.dump(json.dumps(self.term_idf), f)
+        with open(os.path.join(self.output_dir, 'docid_terms_tfs.dict'), 'wb') as f:
+            pkl.dump(json.dumps(self.docid_terms_tfs), f)
 
     def load(self):
         """Loads doc_id_map and term_id_map from output directory"""
@@ -323,9 +327,11 @@ class BSBIIndex:
         with open(os.path.join(self.output_dir, 'docs.dict'), 'rb') as f:
             self.doc_id_map = pkl.load(f)
         with open(os.path.join(self.output_dir, 'term_tf_doclist.dict'), 'rb') as f:
-            self.term_tf_docid=dict(json.loads(pkl.load(f)))
-        with open(os.path.join(self.output_dir, 'term_tfidf.dict'), 'rb') as f:
-            self.term_tfidf=dict(json.loads(pkl.load(f)))
+            self.term_tf_docid = dict(json.loads(pkl.load(f)))
+        with open(os.path.join(self.output_dir, 'term_idf.dict'), 'rb') as f:
+            self.term_idf = dict(json.loads(pkl.load(f)))
+        with open(os.path.join(self.output_dir, 'docid_terms_tfs.dict'), 'rb') as f:
+            self.docid_terms_tfs = dict(json.loads(pkl.load(f)))
 
     def merge(self, indices, merged_index):
         """
@@ -386,7 +392,7 @@ class BSBIIndex:
             merged_index.append(termid, sorted(pl))
             # print(termid)
 
-    def index(self, is_indexed=True,stopwords_path=None):
+    def index(self, is_indexed=True, stopwords_path=None):
         """Base indexing code
 
         既然我们知道文档列表已经排过序了，那么我们可以在线性时间内对它们进行合并排序。
@@ -425,7 +431,7 @@ class BSBIIndex:
             #     print("time=", time_end - time_start)
             time_start = time.time()
 
-            td_pairs = self.parse_block(self.data_dir + '/' ,stopwords_path=stopwords_path)
+            td_pairs = self.parse_block(self.data_dir + '/', stopwords_path=stopwords_path)
 
             index_id = 'index_'
             self.intermediate_indices.append(index_id)
@@ -501,17 +507,16 @@ class BSBIIndex:
                     else:
                         words = [w for w in words_list if w != ' ']
 
-                    print(words)
-                    # print(words)
                     for word in words:
                         # 返回一个词的id
                         termID = self.term_id_map.__getitem__(word)
                         result.append((termID, docID))
-                        self.term_tf_docid[termID][0]+=1
+                        self.term_tf_docid[termID][0] += 1
                         self.term_tf_docid[termID][1].add(docID)
-        # 计算tfidf
-        for termID,docID in result:
-            self.term_tfidf[termID]=log(len(self.doc_id_map)/len(self.term_tf_docid[termID][1]))
+                        self.docid_terms_tfs[docID][termID] += 1
+        # 计算idf
+        for termID, docID in result:
+            self.term_idf[termID] = log(len(self.doc_id_map) / len(self.term_tf_docid[termID][1]))
 
         return result
 
@@ -550,7 +555,7 @@ class BSBIIndex:
 
         Parameters
         ----------
-        query: str
+        query: str or list
             Space separated list of query tokens
 
         Result
@@ -564,7 +569,7 @@ class BSBIIndex:
         if len(self.term_id_map) == 0 or len(self.doc_id_map) == 0:
             self.load()
 
-        if isinstance(query,str):
+        if isinstance(query, str):
             ### Begin your code
             terms = query.split(' ')
             with InvertedIndexMapper(self.index_name, self.postings_encoding, directory=self.output_dir) as iim:
@@ -584,7 +589,7 @@ class BSBIIndex:
                 r = [self.doc_id_map.id_to_str[r] for r in res]
                 return r
             ### End your code
-        if isinstance(query,list):
+        if isinstance(query, list):
             with InvertedIndexMapper(self.index_name, self.postings_encoding, directory=self.output_dir) as iim:
                 res = []
 
@@ -601,7 +606,6 @@ class BSBIIndex:
                 # 未在sorted intersection函数中保证res的有序，但是在invert write保证了有序
                 r = [self.doc_id_map.id_to_str[r] for r in res]
                 return r
-
 
 
 def sorted_intersect(list1, list2):
@@ -876,94 +880,93 @@ class GammaCompressor:
             if i >= byteslen:
                 return res
 
+# if __name__ == '__main__':
+# bsbi = BSBIIndex(data_dir='toy-data', output_dir='tmp', index_name='test',postings_encoding=CompressedPostings)
+# bsbi.index(False)
+# print(bsbi.retrieve('very cool'))
 
-if __name__ == '__main__':
-    # bsbi = BSBIIndex(data_dir='toy-data', output_dir='tmp', index_name='test',postings_encoding=CompressedPostings)
-    # bsbi.index(False)
-    # print(bsbi.retrieve('very cool'))
+# print(bsbi.parse_block('toy-data'))
+# iiw = InvertedIndexWriter('test', directory=r"tmp")
+#
+# bsbi.invert_write(bsbi.parse_block('toy-data'), iiw)
+#
+#
+#
+#
+# iii = InvertedIndexIterator('test', directory=r"tmp")
+# with iii as i:#这些iter、next函数只有在被当做上下文管理器打开时才能访问到
+#     try:
+#         while i:
+#             print(i.__next__())
+#             # pass
+#     except StopIteration:
+#         i.__exit__(StopIteration,StopIteration.value,StopIteration.__traceback__)
+#
+#
+# BSBI_instance = BSBIIndex(data_dir='toy-data', output_dir='toy_output_dir')
+# BSBI_instance.index()
 
-    # print(bsbi.parse_block('toy-data'))
-    # iiw = InvertedIndexWriter('test', directory=r"tmp")
-    #
-    # bsbi.invert_write(bsbi.parse_block('toy-data'), iiw)
-    #
-    #
-    #
-    #
-    # iii = InvertedIndexIterator('test', directory=r"tmp")
-    # with iii as i:#这些iter、next函数只有在被当做上下文管理器打开时才能访问到
-    #     try:
-    #         while i:
-    #             print(i.__next__())
-    #             # pass
-    #     except StopIteration:
-    #         i.__exit__(StopIteration,StopIteration.value,StopIteration.__traceback__)
-    #
-    #
-    # BSBI_instance = BSBIIndex(data_dir='toy-data', output_dir='toy_output_dir')
-    # BSBI_instance.index()
+# BSBI_instance = BSBIIndex(data_dir='test-pa1-data1', output_dir='test-output-diroutput_dir')
+# BSBI_instance.index(False)
+# print(BSBI_instance.retrieve('very good'))
 
-    # BSBI_instance = BSBIIndex(data_dir='test-pa1-data1', output_dir='test-output-diroutput_dir')
-    # BSBI_instance.index(False)
-    # print(BSBI_instance.retrieve('very good'))
+# with InvertedIndexMapper(BSBI_instance.index_name, BSBI_instance.postings_encoding,
+#                          directory=BSBI_instance.output_dir) as iim:
+#     iim._get_postings_list("boolean")
 
-    # with InvertedIndexMapper(BSBI_instance.index_name, BSBI_instance.postings_encoding,
-    #                          directory=BSBI_instance.output_dir) as iim:
-    #     iim._get_postings_list("boolean")
+############mian
 
-    ############mian
+# BSBI_instance = BSBIIndex(data_dir='pa1-data', output_dir='output_dir')
+# BSBI_instance.intermediate_indices = ['index_' + str(i) for i in range(10)]
+# with InvertedIndexWriter(BSBI_instance.index_name, directory=BSBI_instance.output_dir,
+#                          postings_encoding=BSBI_instance.postings_encoding) as merged_index:
+#     with contextlib.ExitStack() as stack:
+#         indices = [stack.enter_context(InvertedIndexIterator(index_id, directory=BSBI_instance.output_dir,postings_encoding=BSBI_instance.postings_encoding)) for
+#                    index_id in BSBI_instance.intermediate_indices]
+#         BSBI_instance.merge(indices, merged_index)
 
-    # BSBI_instance = BSBIIndex(data_dir='pa1-data', output_dir='output_dir')
-    # BSBI_instance.intermediate_indices = ['index_' + str(i) for i in range(10)]
-    # with InvertedIndexWriter(BSBI_instance.index_name, directory=BSBI_instance.output_dir,
-    #                          postings_encoding=BSBI_instance.postings_encoding) as merged_index:
-    #     with contextlib.ExitStack() as stack:
-    #         indices = [stack.enter_context(InvertedIndexIterator(index_id, directory=BSBI_instance.output_dir,postings_encoding=BSBI_instance.postings_encoding)) for
-    #                    index_id in BSBI_instance.intermediate_indices]
-    #         BSBI_instance.merge(indices, merged_index)
+# test
+# BSBI_instance1 = BSBIIndex(data_dir='test-pa1-data1',postings_encoding=CompressedPostings ,output_dir='test-output-dir')
+# BSBI_instance1.index(False)
+# print(BSBI_instance1.retrieve('boolean retrieval'))
 
-    # test
-    # BSBI_instance1 = BSBIIndex(data_dir='test-pa1-data1',postings_encoding=CompressedPostings ,output_dir='test-output-dir')
-    # BSBI_instance1.index(False)
-    # print(BSBI_instance1.retrieve('boolean retrieval'))
+# BSBI_instance1 = BSBIIndex(data_dir='pa1-data1',output_dir='output_dir')
+# print(BSBI_instance1.retrieve('we are'))
 
-    # BSBI_instance1 = BSBIIndex(data_dir='pa1-data1',output_dir='output_dir')
-    # print(BSBI_instance1.retrieve('we are'))
+# BSBI_instance = BSBIIndex(data_dir='pa1-data',output_dir='output_dir')
+# BSBI_instance.index(True)
 
-    # BSBI_instance = BSBIIndex(data_dir='pa1-data',output_dir='output_dir')
-    # BSBI_instance.index(True)
+#
+# BSBI_instance = BSBIIndex(data_dir='pa1-data', output_dir='output_dir_compressed',postings_encoding=CompressedPostings)
+# BSBI_instance.index(False)
+# for i in range(1, 9):
+#     with open('dev_queries/query.' + str(i)) as q:
+#         query = q.read().strip('\n')
+#         my_results = sorted(set([os.path.normpath(path) for path in BSBI_instance.retrieve(query)]))
+#         with open('dev_output/' + str(i) + '.out') as o:
+#             reference_results = sorted(set(['pa1-data\\' + os.path.normpath(x.strip()) for x in o.readlines()]))
+#             try:
+#                 assert my_results==reference_results
+#                 print("Results match for query:", query.strip())
+#             except AssertionError:
+#                 print(set(my_results) - set(reference_results))
+#                 print(set(reference_results) - set(my_results))
+#                 print(str(i) + " Results DO NOT match for query: " + query.strip())
+#
 
-    #
-    # BSBI_instance = BSBIIndex(data_dir='pa1-data', output_dir='output_dir_compressed',postings_encoding=CompressedPostings)
-    # BSBI_instance.index(False)
-    # for i in range(1, 9):
-    #     with open('dev_queries/query.' + str(i)) as q:
-    #         query = q.read().strip('\n')
-    #         my_results = sorted(set([os.path.normpath(path) for path in BSBI_instance.retrieve(query)]))
-    #         with open('dev_output/' + str(i) + '.out') as o:
-    #             reference_results = sorted(set(['pa1-data\\' + os.path.normpath(x.strip()) for x in o.readlines()]))
-    #             try:
-    #                 assert my_results==reference_results
-    #                 print("Results match for query:", query.strip())
-    #             except AssertionError:
-    #                 print(set(my_results) - set(reference_results))
-    #                 print(set(reference_results) - set(my_results))
-    #                 print(str(i) + " Results DO NOT match for query: " + query.strip())
-    #
+# BSBI_instance = BSBIIndex(data_dir='test-pa1-data1',output_dir='test_gamma_output_dir',postings_encoding=GammaCompressor)
+# BSBI_instance.index(False)
+# print(BSBI_instance.retrieve('department'))
 
-    # BSBI_instance = BSBIIndex(data_dir='test-pa1-data1',output_dir='test_gamma_output_dir',postings_encoding=GammaCompressor)
-    # BSBI_instance.index(False)
-    # print(BSBI_instance.retrieve('department'))
-
-    # TODO:
-    #  将数据库中的数据导出为文件（或者修改源程序使支持数据库内数据建倒排索引），直接用这个函数就可以构建好倒排索引
-    #  计算PageRank（networkx）并保存，计算文档向量（gensim）并保存
-    #  根据查询，返回url，根据url，获取PageRank、文档向量，进行相乘，评分，返回用户
-    BSBI_instance = BSBIIndex(data_dir='pages/test', output_dir='index/test', index_name='test', postings_encoding=None)
-    BSBI_instance.index(is_indexed=True,stopwords_path='stopwords.txt')
-    print(jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青',cut_all=True))
-    print(''.join(jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青')))
-    print(BSBI_instance.retrieve(''.join(jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青'))))
-    print(BSBI_instance.term_tfidf[str(BSBI_instance.term_id_map.__getitem__('南开大学'))])
-    # print(BSBI_instance.term_tf_docid[BSBI_instance.term_id_map.__getitem__('南开大学')][0])
-    # print(BSBI_instance.term_tf_docid[BSBI_instance.term_id_map.__getitem__('南开大学')][1])
+# TODO:
+#  将数据库中的数据导出为文件（或者修改源程序使支持数据库内数据建倒排索引），直接用这个函数就可以构建好倒排索引
+#  计算PageRank（networkx）并保存，计算文档向量（gensim）并保存
+#  根据查询，返回url，根据url，获取PageRank、文档向量，进行相乘，评分，返回用户
+# BSBI_instance = BSBIIndex(data_dir='pages/test', output_dir='index/test', index_name='test', postings_encoding=None)
+# BSBI_instance.index(is_indexed=True,stopwords_path='stopwords.txt')
+# print(jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青',cut_all=True))
+# print(''.join(jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青')))
+# print(BSBI_instance.retrieve([i for i in jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青') if i !=' ']))
+# print(BSBI_instance.term_tfidf[str(BSBI_instance.term_id_map.__getitem__('南开大学'))])
+# print(BSBI_instance.term_tf_docid[BSBI_instance.term_id_map.__getitem__('南开大学')][0])
+# print(BSBI_instance.term_tf_docid[BSBI_instance.term_id_map.__getitem__('南开大学')][1])

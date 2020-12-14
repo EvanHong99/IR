@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 '''
-@File    :   config.py    
+@File    :   my_config.py
 @Contact :   h939778128@gmail.com
 @License :   No license
 
@@ -19,8 +19,7 @@ HEADERS = {
     'cache - control': 'max - age = 0'
 }
 
-THREADS_NUM=7
+THREADS_NUM = 7
 
 # sqlalchemy to_sql
-DB_LOGIN="mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku"
-
+DB_LOGIN = "mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku"
