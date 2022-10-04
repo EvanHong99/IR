@@ -301,7 +301,8 @@ class BSBIIndex:
     def save(self):
         """
         都是单独的map，而非倒排索引表
-        Dumps doc_id_map and term_id_map into output directory"""
+        Dumps doc_id_map and term_id_map into output directory
+        """
 
         def set_default(obj):
             if isinstance(obj, set):

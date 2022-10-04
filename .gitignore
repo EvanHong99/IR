@@ -3,3 +3,7 @@ pages
 logs
 venv
 .idea
+__pycache__
+index/*
+*.zip
+tables/*

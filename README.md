@@ -1,8 +1,4 @@
-# TODO:
-#  将数据库中的数据导出为文件（或者修改源程序使支持数据库内数据建倒排索引），直接用这个函数就可以构建好倒排索引
-#  计算PageRank（networkx）并保存，计算文档向量（gensim）并保存
-#  根据查询，返回url，根据url，获取PageRank、文档向量，进行相乘，评分，返回用户
-
+<!--
 **为 12 月 13 日（周日）**
 
 大家每周日发送邮件简单总结一下本周完成了哪些内容，最后在截止日期前将代码、文档、演示视频打包（命名“学号
@@ -55,50 +51,74 @@ sdu视点新闻全站爬虫爬取+索引构建+搜索引擎查询练习程序
 1.3 检索排序
 
 对上一步构建的索引库进行查询，对于给定的查询，给出检索结果，明白排序的原理及方法。
+-->
 
 
 
 
 # EverythinNKU
 
+**主要实现功能**
+- 网页爬取
+- 倒排索引构建
+- 利用PageRank将结果排序进一步优化
+- 自己编写的VSM排序查询结果
+
 ## web crawler
 
-1. 获取nk vpn首页urls，作为种子url
-2. 根据种子url，爬取网页，将该url加入used url列表，
+[查看源码](CRAWLER.py)
+
+1. 将南开大学官网作为种子url
+2. 根据种子url，自己编写程序进行网页爬取，将该url加入used url列表，
     将网页中的链接加入到unused url列表，防止重复爬取。
-3. 将网页中重要的信息（一般包含在a标签下）保存为文件供建立索引
-
-文件格式
-filename=base url.html
-
+3. 将网页中重要的信息（一般包含在a标签下），比如标题、锚文本、相对链接等保存为数据库文件供建立索引。
+将文本文件根据相应的映射存储为txt文件
 
 **做的优化**
 1. 多线程
 2. 锁机制
-3. 日志（还没完成）
-```
-sql select
-3.439732074737549
-if in
-0.006981372833251953
-```
+3. 爬取日志
+
 
 
 ## index
 
-## 难点
-暗网/动态资源爬取：一般的爬虫无法爬取搜索引擎中的信息
+[查看源码](BSBI.py)
 
-**重复url**
+以BSBI为基础，在parse block的同时进行自定义目标数据结构的维护，并用pickle、json等包的dump函数将其保存到磁盘中。
 
-使用
-```mysql
- group by unused
+下次使用时，再利用load函数将其加载到内存。
+
+类内主要多维护了这几个属性：
+```python
+self.term_tf_docid = defaultdict(lambda: [0, set()])
+self.term_idf = defaultdict(float)
+self.docid_terms_tfs = defaultdict(lambda: defaultdict(int))
 ```
+分别用来存储词向的倒排索引及其词频、词向的逆文档频率、文档内词向的词频
 
-**内存爆炸**
+## PageRank
+[查看源码](PageSorter.py)
 
-主要原因是unused url太多，但是不清楚是因为什么导致之前的去重有问题，后来采用group by来去重
+1. 根据爬取的链接间的关系，构建有向图
+2. 利用networkx进行PageRank计算
+3. 将结果保存到磁盘中
+
+## VSM
+
+[查看源码](PageSorter.py)
+
+1. 继承自BSBIIndex，主要将之前计算出来的tf、idf进行最后的相乘求和并归一化，
+并扩展了对外的查询接口，能够提供文档查询个性化查询等服务。
+2. 此外，会对每位用户的查询进行日志记录，便于提供更好地个性化查询。现阶段的个性化查询比较简单粗暴，
+日后会对其算法进行进一步的改进。
+
+
+## 遇到的问题
+
+**网页爬取内容一直会出现各种各样的问题**
+
+这是一个不断发现问题并解决问题的过程，现在我已经爬取的数据中还是会有很多没有考虑到的问题。日后会进一步改进。
 
 **对Python语言的掌握度不够，发生错误但是一直没有发现**
 
@@ -118,134 +138,12 @@ uniq_urls = [i for i in set(new_urls) if i not in unused_url and i not in used_u
 
 **避免死锁**
 
-使用`threading.Rlock`可重用锁
+编写acquire函数，给锁进行相应的编号，使得两个锁的获得必定是有序的
 
-**根url下的直接链接地址**
+**相对链接地址**
 
 ```html
 <div class="text-muted description">
     <p class="text"><a href='/2020/1114/c19665a317736/page.htm' target='_blank' title='金融学院召开课程思政建设工作推动会'>（通讯员：徐静）为进一步贯彻落实《南开大学课程思政建设实施方案》和南开大学课...</a></p>
 </div>
 ```
-```<!--
-# delete from _unused_url where unused not like '%nankai%';
-# select *
-# from _used_url
-# where used='http://www.mathlib.nankai.edu.cn/';
-
-
-delete
-from links;
-delete
-from unused_url;
-delete
-from used_url;
-
-delete from used_url
-where used='https://www.nankai.edu.cn/';
-delete from used_url
-where used in (
-    select `linked url`
-    from links
-    where `base url`='https://www.nankai.edu.cn/'
-    );
-
-delete from used_url
-where used in ('https://www.nankai.edu.cn/',
-'http://xxgk.nankai.edu.cn/',
-'https://www.nankai.edu.cn/',
-'http://www.lib.nankai.edu.cn/',
-'https://www.nankai.edu.cn/',
-'https://nankai.edu.cn',
-'https://www.nankai.edu.cn/',
-'http://xb.nankai.edu.cn',
-'https://www.nankai.edu.cn/',
-'http://en.nankai.edu.cn/',
-'https://www.nankai.edu.cn/',
-'http://news.nankai.edu.cn/',
-'https://www.nankai.edu.cn/',
-'http://weekly.nankai.edu.cn/');
-
-
-select count(*)
-from _unused_url
-group by unused;
-select *
-from _used_url
-group by used;
-
-insert into unused_url(unused) values (
-'http://xb.nankai.edu.cn',
-'http://cwc.nankai.edu.cn',
-'http://www.lib.nankai.edu.cn',
-'http://jwc.nankai.edu.cn',
-'http://jsfz.nankai.edu.cn',
-'http://rsc.nankai.edu.cn',
-'http://xgb.nankai.edu.cn',
-'http://graduate.nankai.edu.cn',
-'http://ygb.nankai.edu.cn',
-'http://nkoa-webvpn.nankai.edu.cn',
-'http://i.nankai.edu.cn',
-'http://urp.nankai.edu.cn',
-'http://online.nankai.edu.cn',
-'http://zhgl.nankai.edu.cn',
-'http://sheke.nankai.edu.cn',
-'http://less.nankai.edu.cn',
-'http://eamis.nankai.edu.cn',
-'http://yjzj.nankai.edu.cn',
-'http://xsfww.nankai.edu.cn',
-'http://sysaqk.nankai.edu.cn',
-'http://reg.nankai.edu.cn',
-'http://wlaq.nankai.edu.cn',
-'http://print.lib.nankai.edu.cn',
-'http://paper.lib.nankai.edu.cn',
-'http://ic.lib.nankai.edu.cn',
-'http://sso.visiting.nankai.edu.cn/ssojinxiu',
-'http://zyfw.nankai.edu.cn',
-'http://shsj.nankai.edu.cn',
-'http://kwhd.nankai.edu.cn',
-'http://jw.nankai.edu.cn',
-'http://techshow.nankai.edu.cn',
-'http://elearning.nankai.edu.cn',
-'http://sbc.nankai.edu.cn',
-'http://zbb.nankai.edu.cn/sfw_ks/caslogin.jsp',
-'http://czfw.nankai.edu.cn',
-'http://cwc.nankai.edu.cn',
-'http://xcb.nankai.edu.cn',
-'http://nktw.nankai.edu.cn',
-'http://tzb.nankai.edu.cn',
-'http://sd.nankai.edu.cn',
-'http://jnjt.nankai.edu.cn',
-'http://ltxc.nankai.edu.cn',
-'http://youeryuan.nankai.edu.cn',
-'http://archives.nankai.edu.cn',
-'http://it.nankai.edu.cn',
-'http://finance.nankai.edu.cn',
-'http://edp.nankai.edu.cn',
-'http://it.nankai.edu.cn',
-'http://bylw.nankai.edu.cn',
-'http://oa.tas.nankai.edu.cn',
-'http://www.tianjinforum.nankai.edu.cn',
-'http://mem.nankai.edu.cn',
-'http://mbajx.nankai.edu.cn',
-'http://mbaxw.nankai.edu.cn',
-'http://vr.nankai.edu.cn',
-'http://www.mathlib.nankai.edu.cn',
-'http://swsyzx.nankai.edu.cn',
-'http://suguan.nankai.edu.cn',
-'http://nyjfcb.nankai.edu.cn',
-'http://nkuefnew.nankai.edu.cn',
-'http://nyhd.nankai.edu.cn',
-'http://yqjj.nankai.edu.cn',
-'http://bksj.nankai.edu.cn',
-'http://wenchuang.nankai.edu.cn',
-'http://tyxx.nankai.edu.cn/tyexam',
-'http://www.lib.nankai.edu.cn',
-'http://weekly.nankai.edu.cn',
-'http://ca.nankai.edu.cn',
-'http://soft.nankai.edu.cn');
-insert into unused_url(unused) values ('http://less.nankai.edu.cn/equipment?tag=%E5%85%89%E8%B0%B1%E4%BB%AA%E5%99%A8')
-
-select count(*) from used_url where used regexp '.*finance.*';
-select count(*) from links where `base url` regexp '.*finance.*';
--->```

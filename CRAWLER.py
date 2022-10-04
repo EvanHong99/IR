@@ -23,11 +23,11 @@ formatter = logging.Formatter("%(asctime)s|%(name)-12s|%(message)s", "%F %T")
 logger = logging.getLogger("default")
 logger.setLevel(logging.INFO)
 
-log_file_handler = logging.FileHandler(filename='logs/new_log1.txt', encoding='utf-8')
+log_file_handler = logging.FileHandler(filename='logs/2021_1_2_warning.txt', encoding='utf-8')
 log_file_handler.setFormatter(formatter)
 log_file_handler.setLevel(logging.WARNING)
 
-log_file_handler1 = logging.FileHandler(filename='logs/new_info_log1.txt', encoding='utf-8')
+log_file_handler1 = logging.FileHandler(filename='logs/2021_1_2_info.txt', encoding='utf-8')
 log_file_handler1.setFormatter(formatter)
 log_file_handler1.setLevel(logging.INFO)
 
@@ -44,9 +44,6 @@ thread_local = threading.local()
 
 unused_url = []
 used_url = []
-
-
-
 
 
 @contextmanager
@@ -87,11 +84,14 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
         global connection
 
         # 重新自己维护的映射，使得文件输出名为id，用save函数保存该map，直接用数据库表行id来表示
-        doc_id=0
+        doc_id = 0
         empty_times = 0
         # content_to_file_times=0
         new_urls = []
+        last_page_title = ''
+        last_page_id = 0
         while True:
+
             if not unused_url:
                 empty_times += 1
                 if (empty_times > 100):
@@ -111,7 +111,6 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                     while True:
                         try:
                             connection.ping()
-
                             break
                         except pymysql.OperationalError:
                             if reconnect_times % 10 == 0 and reconnect_times < 100:
@@ -157,10 +156,14 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                         used_url.append(url)
                         connection.ping(True)
                         cursor.execute("insert into used_url(used) value (%s);", [url])
-                        cursor.execute("select id from used_url where used=(%s)",url)
-                        doc_id=cursor.fetchall()[0]['id']
-
-                # TODO 检查pdf doc爬取正确性
+                        cursor.execute("select id from used_url where used=(%s)", url)
+                        doc_id = cursor.fetchall()[0]['id']
+                        # 更新上一次访问的url的title
+                        if last_page_title and last_page_id:
+                            cursor.execute("update used_url set title=(%s) where id=(%s);",
+                                           (last_page_title, last_page_id))
+                        last_page_title = ''
+                        last_page_id = 0
                 # 未被爬去过,且是南开站点
                 if if_new:
                     page = get_page(url, my_config.HEADERS)
@@ -170,15 +173,17 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                         continue
 
                     soup = BeautifulSoup(page, 'lxml')  # html.parser是解析器，也可是lxml
-                    # soup = BeautifulSoup(page, 'lxml', from_encoding='utf-8')  # html.parser是解析器，也可是lxml
+                    last_page_id = doc_id
+                    if soup.select('title'):
+                        last_page_title = soup.select('title')[0].string
 
                     # 将各种标签内的文字存入一个list,新版本为一个string
                     # 文本内容
-                    # TODO: 对title单独建索引
                     strings = ''
-                    for tag in ['title', 'a', 'div', 'li', 'span', 'p']:
-                        strings = strings + ' '.join(
-                            [i.string.strip() for i in soup.select(tag) if i.string and len(i.string) > 1]) + ' '
+                    if soup.select('p'):
+                        strings = ' '.join(
+                            [i.string.strip() for i in soup.select('p') if
+                             i.string and ('copyright' or 'Copyright' or '版权所有') not in i.string and len(i.string) > 5])
 
                     # 将链接关系（包括锚文本）写入csv文件，链接内容
                     links = pd.DataFrame(columns=['base url', 'hook', 'linked url'])
@@ -230,20 +235,11 @@ class myThread(threading.Thread):  # 继承父类threading.Thread
                         # 发现还是采用一个网页一个文件的形式最好，可以对接之前的作业，傻了傻了
                         # url=urllib.parse.unquote(url)
                         # 对于不符合windows文件命名规范的直接抛弃
-                        repl_url = "pages/12_13_16_42/" +str(doc_id)+".txt"
-                        retrieve_url = "pages/retrieve/" +str(doc_id)+".txt"
-                        # repl_url = "pages/new_page_txt/" + url.replace('/', "+").replace(':', '-').replace('=',
-                        #                                                                                    ',').replace(
-                        #     '?', '\'') + ".txt"
-                        # repl_url=u"pages/page_txt/"+url+".txt"
-                        # with open(file=repl_url.decode('utf-8'),mode='w',encoding='utf-8') as fw:
-                        with open(file=repl_url, mode='w', encoding='utf-8') as fw:
-                            fw.write(strings)
-                            fw.close()
-                        with open(file=repl_url, mode='w', encoding='utf-8') as fw:
-                            fw.write(strings)
-                            fw.close()
-
+                        out_name = "pages/2021_1_2/" + str(doc_id) + ".txt"
+                        if len(strings) > 10:
+                            with open(file=out_name, mode='w', encoding='utf-8') as fw:
+                                fw.write(strings)
+                                fw.close()
 
                         links.to_sql('links', engine1, 'everytinku', 'append', index=False)
                         pdfs.to_sql('pdfs', engine1, 'everytinku', 'append', index=False)
@@ -295,8 +291,16 @@ if __name__ == '__main__':
     try:
         # 连接数据库
         engine1 = engine.create_engine("mysql+pymysql://root:Qazwsxedcrfv0957@localhost:3306/everytinku")
-
-        with my_config.connection.cursor() as cursor:
+        connection = pymysql.connect(host='localhost',
+                                     port=3306,
+                                     user='root',
+                                     password='Qazwsxedcrfv0957',
+                                     db='everytinku',
+                                     charset='utf8',
+                                     cursorclass=pymysql.cursors.DictCursor,
+                                     )
+        connection.autocommit(True)
+        with connection.cursor() as cursor:
             # 先初始化内存，维护两个列表。所有线程共享
             cursor.execute("select used from used_url;")
             used_url = list(map(lambda d: d.get('used'), cursor.fetchall()))
@@ -308,7 +312,7 @@ if __name__ == '__main__':
 
             # 创建新线程
             for i in range(my_config.THREADS_NUM):
-            # for i in range(1):
+                # for i in range(1):
                 threads.append(myThread(i, "thread-" + str(i), i))
 
             # 开启新线程

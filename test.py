@@ -225,5 +225,13 @@ if __name__ == '__main__':
     #
     # print()
 
-    import jieba
-    print([i for i in jieba.cut('南开大学 曹雪涛 校学术委员会考核评审百名青') if i !=' '])
+    from collections import defaultdict
+    query_tf=defaultdict(int)
+    ql=[]
+    for w in ['abc']:
+        for i in range(len(w)):
+            # 将文本转为id进行索引
+            query_tf[w[i:] + w[:i]] += 1
+            ql.append(w[i:] + w[:i])
+
+    print(ql)
