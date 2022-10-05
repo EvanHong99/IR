@@ -1,0 +1,12 @@
+Disadvantages
+Exact matching may retrieve too few or too many documents
+Hard to translate a query into a Boolean expression
+All terms are equally weighted
+More like data retrieval than information retrieval
+Retrieval based on binary decision criteria with no notion of partial matching
+No ranking of the documents is provided (absence of a grading scale)
+Information need has to be translated into a Boolean expression, which most users find
+awkward
+The Boolean queries formulated by the users are most often too simplistic
+The model frequently returns either too few or too many documents in response to a user
+query

@@ -1,0 +1,25 @@
+# Created by .ignore support plugin (hsz.mobi)
+hw4/dev_output/
+dev_queries/
+output_dir/
+tmp/
+toy-data/
+toy_output_dir/
+venv/
+../.idea/
+*.iml
+out
+gen
+.zip
+/output_dir_compressed/
+/pa1-data/
+/test-output-dir/
+/test-output-diroutput_dir/
+/test-pa1-data/
+/test-pa1-data1/
+/test_gamma_output_dir/
+/test_output_dir_compressed/
+dev_output/
+gamma_output_dir/
+hw4.zip
+pa1-data.zip
