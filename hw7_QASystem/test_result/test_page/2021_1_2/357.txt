@@ -1,0 +1,6 @@
+merge (m:A0{name:'2021年全国硕士研究生招生考试'})-[r:拉开]-(n:A1{name:'“战幕”'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'南开大学、天津大学等我市各考点'})-[r:安排]-(n:A1{name:'大量工作人员'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'南开大学、天津大学等我市各考点'})-[r:安排]-(n:A2{name:'引导考生按区域有序排队，保持距离'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'考生'})-[r:保持]-(n:A1{name:'距离'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'考点'})-[r:核验]-(n:A1{name:'考生信息、健康码信息'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'考生'})-[r:进入]-(n:A1{name:'考场'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

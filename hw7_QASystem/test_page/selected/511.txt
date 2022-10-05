@@ -1,0 +1,8 @@
+merge (m:A0{name:'科研助理岗位'})-[r:需]-(n:A1{name:'基本素质和专业技能'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'由各课题组'})-[r:提供]-(n:A1{name:'工资、社会保险和住房公积金'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'科研助理岗位的选聘'})-[r:遵循]-(n:A1{name:'“公开、公正、竞争、择优”的原则'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'各单位'})-[r:加强]-(n:A1{name:'对候选人政治素质和业务能力的把关'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'学校'})-[r:批准]-(n:A1{name:'岗位指标'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'候选人'})-[r:报]-(n:A1{name:'学校审批'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'学校'})-[r:实行]-(n:A1{name:'劳务派遣制'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'学校'})-[r:派遣]-(n:A2{name:'相关单位'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

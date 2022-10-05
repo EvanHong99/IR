@@ -1,0 +1,16 @@
+merge (m:A0{name:'教育部'})-[r:推出]-(n:A1{name:'首批国家级一流本科课程'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'物理科学学院刘玉斌教授、化学学院邱晓航教授、公共英语教学部唐磊老师'})-[r:分享]-(n:A1{name:'一流本科课程建设经验'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'课程思政'})-[r:是]-(n:A1{name:'一流课程的核心和灵魂'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'王新生'})-[r:指出]-(n:A1{name:'以“课程思政”建设落实立德树人根本任务，贯穿于一流课程、一流学科、一流大学的建设过程。大家要着眼未来、高度重视，以“课程思政”建设为创新发展契机，挖掘其丰富内涵、探索其实现路径，在教学一线分享研讨案例经验，形成门门有思政、人人都参与的良好局面，争创一流、铸魂育人'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'大家'})-[r:着眼]-(n:A1{name:'未来'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'大家'})-[r:为]-(n:A2{name:'以“课程思政”建设'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'大家'})-[r:为]-(n:A1{name:'创新发展契机'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'大家'})-[r:挖掘]-(n:A1{name:'其丰富内涵'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'大家'})-[r:探索]-(n:A1{name:'其实现路径'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'大家'})-[r:分享]-(n:A1{name:'研讨案例经验'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'大家'})-[r:形成]-(n:A2{name:'门门有思政、人人都参与的良好局面'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'汪曣'})-[r:表示]-(n:A1{name:'本次会议将“课程思政”建设与一流课程、一流专业建设紧密结合，抓得好、抓得准，有高度、有深度。我们要以教师队伍建设切实抓好课堂育人主阵地；同时要不断深化认识，将“课程思政”建设作为高校的一项战略性、全局性工作，切实做到为党育才、为国育才'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'我们'})-[r:抓好]-(n:A1{name:'课堂育人主阵地'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'我们'})-[r:深化]-(n:A1{name:'认识'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'教务处负责人'})-[r:介绍]-(n:A1{name:'学校课程思政和一流课程建设情况'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'教师发展中心负责人'})-[r:介绍]-(n:A1{name:'首届全国高校教师教学创新大赛相关情况'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

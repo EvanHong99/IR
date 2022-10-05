@@ -1,0 +1,4 @@
+merge (m:A0{name:'南开大学马克思主义学院教授、博士生导师张健（右二）'})-[r:来到]-(n:A1{name:'宝坻区周良街道办事处'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'南开大学马克思主义学院教授、博士生导师张健（右二）'})-[r:为]-(n:A2{name:'以“历史交汇点上的系统谋划和战略部署”'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'南开大学马克思主义学院教授、博士生导师张健（右二）'})-[r:为]-(n:A1{name:'题'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'南开大学马克思主义学院教授、博士生导师张健（右二）'})-[r:宣讲]-(n:A1{name:'党的十九届五中全会精神'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

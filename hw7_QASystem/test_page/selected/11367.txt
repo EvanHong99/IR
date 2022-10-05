@@ -1,0 +1,16 @@
+merge (m:A0{name:'哈萨克族新战士阿斯哈尔·努尔太'})-[r:是]-(n:A1{name:'烈士的儿子'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'努尔太的愿望'})-[r:是]-(n:A1{name:'刻苦训练、早日当上特战队员'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'外公'})-[r:是]-(n:A1{name:'抗美援朝的老兵'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'他'})-[r:报告]-(n:A2{name:'外公'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'这8名南开学子'})-[r:有着]-(n:A1{name:'深深的自豪感'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'他们'})-[r:决定]-(n:A1{name:'要写一封信'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'习近平主席的回信'})-[r:引发]-(n:A1{name:'热烈讨论'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'信中'})-[r:指出]-(n:A1{name:'自古以来，我国文人志士多有投笔从戎的家国情怀，希望青年学子们响应祖国召唤，把爱国之心化为报国之行'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'我国文人志士'})-[r:有]-(n:A1{name:'投笔从戎的家国情怀'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'青年学子们'})-[r:响应]-(n:A1{name:'祖国召唤'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'青年学子们'})-[r:化为]-(n:A1{name:'爱国之心'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'青年学子们'})-[r:化为]-(n:A2{name:'报国之行'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'这些话语'})-[r:引发]-(n:A1{name:'强烈共鸣'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'很多同学'})-[r:说]-(n:A1{name:'习近平主席的回信，既是给南开同学们的，也是给全体大学生的，不论什么专业，将来在什么岗位，都应该把爱国之心化为报国之行，在中华民族复兴的伟大实践中书写绚烂无悔的青春篇章'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'习近平主席的回信'})-[r:是]-(n:A1{name:'给南开同学们的'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'习近平主席的回信'})-[r:是]-(n:A1{name:'给全体大学生的'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

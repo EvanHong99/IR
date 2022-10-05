@@ -1,0 +1,6 @@
+merge (m:A0{name:'商学院'})-[r:介绍]-(n:A1{name:'院系两级质量保障体系'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'每个系'})-[r:设立]-(n:A1{name:'专门负责本科教学的副系主任'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'学院'})-[r:开展]-(n:A1{name:'工作'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'学院'})-[r:加强]-(n:A1{name:'科教融合'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'学院'})-[r:培养]-(n:A1{name:'研究型人才'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'各学院领导、学院督导、负责教学质量工作的教务干事、教务处本科教学质量监督评价中心工作人员'})-[r:参加]-(n:A1{name:'此次调研'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

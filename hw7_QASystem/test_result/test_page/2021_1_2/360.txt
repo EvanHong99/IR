@@ -1,0 +1,6 @@
+merge (m:A0{name:'“孙平化日本学学术奖励基金”'})-[r:是]-(n:A1{name:'我国日本研究领域的最高奖项'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'中国宋庆龄基金会'})-[r:设立]-(n:A1{name:'此奖项'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'由天津人民出版社'})-[r:出版]-(n:A1{name:'此次获奖的三本图书'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'此次获奖的三本图书'})-[r:是]-(n:A1{name:'“南开大学世界近现代史研究丛书”中的三本'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'作者'})-[r:为]-(n:A1{name:'南开大学世界近现代史研究中心教授'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'这'})-[r:是]-(n:A1{name:'天津人民出版社多年来注重前瞻性理论研究成果，长远布局、精心策划打造长线品牌产品'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

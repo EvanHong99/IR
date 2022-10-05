@@ -1,0 +1,7 @@
+merge (m:A0{name:'由各学院、各单位'})-[r:推荐]-(n:A1{name:'优秀管理服务（教辅）个人或科室'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'由唐立新教育基金评审委员会'})-[r:委托]-(n:A1{name:'教师发展中心及发展委员会办公室'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'由唐立新教育基金评审委员会'})-[r:委托]-(n:A2{name:'组织实施'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'工作成果'})-[r:具有]-(n:A1{name:'影响力'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'工作成果'})-[r:惠及]-(n:A1{name:'广大教师'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'工作案例'})-[r:具有]-(n:A1{name:'一定的参考价值'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'该项工作'})-[r:获得]-(n:A1{name:'评价及奖励'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

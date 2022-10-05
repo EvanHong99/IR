@@ -1,0 +1,1 @@
+merge (m:A0{name:'此次论坛'})-[r:邀请]-(n:A1{name:'6位优秀的博士后'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

@@ -1,0 +1,2 @@
+merge (m:A0{name:'大家'})-[r:保持]-(n:A1{name:'手机、邮箱等联系方式畅通'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'大家'})-[r:关注]-(n:A1{name:'我院网站通知'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;

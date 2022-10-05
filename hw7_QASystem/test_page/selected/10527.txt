@@ -1,0 +1,9 @@
+merge (m:A0{name:'考生'})-[r:确认]-(n:A1{name:'参营'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'考生'})-[r:寄送]-(n:A1{name:'材料'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'经发院'})-[r:公布]-(n:A1{name:'入营名单'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'考生'})-[r:确认]-(n:A1{name:'参营'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'我院'})-[r:执行]-(n:A1{name:'南开大学相关奖助学金体系'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'我院'})-[r:提供]-(n:A1{name:'有吸引力的奖助学金'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'奖助学金'})-[r:有]-(n:A1{name:'吸引力'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'本院'})-[r:谢绝]-(n:A1{name:'考生的亲属或朋友'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
+merge (m:A0{name:'本院'})-[r:谢绝]-(n:A2{name:'咨询'}) ON CREATE SET r.value=1 on match set r.value=r.value+1;
